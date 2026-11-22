@@ -43,6 +43,6 @@ feed over the internet). Developer credit: Muhammad Kamran Malik, +923135275771.
 
 ## Dated decisions
 - 22 Nov 2026: user picked relay option 1 and UI design 2.
-- 23 Nov 2026: v2 code complete (audio, receiver-side flip, MP4 recording with
-  audio). Push + build verification pending. Workflow already has
-  `permissions: contents: write` from the v1 release fix.
+- 23 Nov 2026: v2 shipped — audio, receiver-side flip, MP4 recording with audio.
+  versionCode 2 / versionName 1.1; run 45081217616 green; release apk-4
+  (5,720,540 bytes). Workflow has `permissions: contents: write` from v1 fix.

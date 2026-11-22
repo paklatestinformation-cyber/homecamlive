@@ -33,7 +33,7 @@ Plan/UI reference: `ui-preview.html` (design 2 "Command Center" selected).
 - [x] V3 — Remote camera flip via `control` topic; status CAM_FRONT/CAM_BACK
 - [x] V4 — Mp4Recorder (MediaCodec H264 + AAC -> MediaMuxer), usable on both phones
 - [x] V5 — UI buttons: camera MIC/FLIP/REC, viewer SOUND/FLIP/REC; RECORD_AUDIO perm
-- [ ] V6 — Push, watch build green, verify release APK
+- [x] V6 — Push, watch build green, verify release APK
 
 ## Decisions (v2)
 - Topics: `homecamlive/<room>/frame`, `/audio` (raw PCM 16 kHz mono 40 ms),
@@ -53,5 +53,11 @@ Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/dow
 Fix log: (1) XML scaleType `fitCenter` lowercase; (2) workflow needs
 `permissions: contents: write` for release upload.
 
+## DONE (v2)
+Build green (run 45081217616, commit 40aa121), release `apk-4`,
+APK 5,720,540 bytes verified (`classes.dex`, `AndroidManifest.xml`, `resources.arsc`).
+Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/download/apk-4/app-debug.apk
+
 ## NOW
-V1–V5 code complete. V6 baaki: push + GitHub Actions build green + release verify.
+v2 shipped. Agar user test mein koi issue report kare (audio/flip/record), usi
+file ko dobara patch kar ke naya build/release banana hai.
