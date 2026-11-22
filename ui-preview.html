@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ur">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HomeCamLive — UI Designs</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 22px 14px 70px;
+    background: #0b0d10; color: #e7ebf0;
+    font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page-title { max-width: 390px; margin: 0 auto 6px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+  .page-sub { max-width: 390px; margin: 0 auto 30px; font-size: 13px; color: #8b93a0; line-height: 1.5; }
+
+  .design { max-width: 390px; margin: 0 auto 46px; }
+  .design-head { display: flex; align-items: center; gap: 10px; margin: 0 2px 12px; }
+  .num {
+    width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 14px; font-weight: 800;
+    background: #1d2229; color: #cfd6e0; border: 1px solid #2a313b;
+  }
+  .design-name { font-size: 15px; font-weight: 700; }
+  .design-mood { font-size: 11.5px; color: #8b93a0; margin-top: 2px; }
+
+  .phone {
+    width: 100%; aspect-ratio: 390 / 844;
+    border: 8px solid #050608; border-radius: 44px;
+    overflow: hidden; position: relative; background: #000;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 0 1px #232932;
+  }
+  .notch {
+    position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 86px; height: 20px; border-radius: 12px; background: #050608; z-index: 5;
+  }
+  .screen {
+    height: 100%; display: flex; flex-direction: column;
+    background: var(--bg); color: var(--t1);
+    padding: 0 18px; position: relative; overflow: hidden;
+  }
+  .d-a { --bg:#0E1116; --card:#171B22; --line:#262D37; --t1:#F2F4F8; --t2:#8A93A5;
+         --accent:#22D3EE; --soft:rgba(34,211,238,.12); --rec:#FF4D4D; --radius:18px; }
+  .d-b { --bg:#0B1220; --card:#131E33; --line:#23314C; --t1:#EAF0FA; --t2:#8FA2C0;
+         --accent:#F5A623; --soft:rgba(245,166,35,.13); --rec:#FF5A5F; --radius:12px; }
+  .d-c { --bg:#F5F7F9; --card:#FFFFFF; --line:#E6EAEF; --t1:#1A1A1A; --t2:#7A8A95;
+         --accent:#0E9F8A; --soft:rgba(14,159,138,.11); --rec:#E0453A; --radius:20px; }
+
+  .d-b .screen::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
+  .d-b .screen > * { position: relative; z-index: 1; }
+
+  .statusbar {
+    height: 40px; flex: 0 0 40px; display: flex; align-items: center;
+    justify-content: space-between; font-size: 11.5px; font-weight: 700;
+    color: var(--t1); padding: 0 6px;
+  }
+  .sb-icons { display: flex; gap: 5px; align-items: center; font-size: 10px; letter-spacing: 1px; }
+  .battery { width: 16px; height: 8px; border: 1px solid currentColor; border-radius: 2px; position: relative; }
+  .battery::after { content:""; position:absolute; inset:1px; width:70%; background:currentColor; border-radius:1px; }
+
+  .appbar {
+    height: 52px; flex: 0 0 52px; display: flex; align-items: center;
+    justify-content: space-between; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+  .brand-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 0 4px var(--soft); }
+  .info-btn {
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line);
+    display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--t2);
+  }
+
+  .scroll { flex: 1; overflow: hidden; padding-top: 18px; }
+  .greeting { font-size: 13px; color: var(--t2); margin-bottom: 20px; }
+  .overline { font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+
+  .mode-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;
+  }
+  .mode-icon {
+    width: 44px; height: 44px; flex: 0 0 44px; border-radius: 14px;
+    background: var(--soft); display: grid; place-items: center;
+  }
+  .mode-icon svg { width: 22px; height: 22px; stroke: var(--accent); }
+  .mode-body { flex: 1; min-width: 0; }
+  .mode-title { font-size: 15px; font-weight: 700; }
+  .mode-sub { font-size: 11.5px; color: var(--t2); margin: 3px 0 7px; line-height: 1.3; }
+  .chip {
+    display: inline-block; font-size: 8.5px; font-weight: 800; letter-spacing: .1em;
+    padding: 4px 8px; border-radius: 20px; background: var(--soft); color: var(--accent);
+  }
+  .chev { font-size: 22px; color: var(--t2); line-height: 1; }
+
+  .room-card {
+    background: var(--card); border: 1px dashed var(--line); border-radius: var(--radius);
+    padding: 13px 14px; margin-top: 4px;
+  }
+  .room-card .overline { color: var(--t2); margin-bottom: 6px; }
+  .room-value { font-size: 17px; font-weight: 800; letter-spacing: .06em; }
+  .room-hint { font-size: 11px; color: var(--t2); margin-top: 4px; }
+
+  .credit {
+    text-align: center; font-size: 9.5px; color: var(--t2); line-height: 1.5;
+    padding: 14px 4px 4px;
+  }
+  .credit b { color: var(--t1); font-weight: 700; }
+
+  .bottom-nav {
+    height: 60px; flex: 0 0 60px; border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-around;
+  }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 9.5px; color: var(--t2); }
+  .nav-item svg { width: 19px; height: 19px; stroke: currentColor; }
+  .nav-item.active { color: var(--accent); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="page-title">HomeCamLive — 3 UI designs</div>
+<div class="page-sub">Ek hi app, do modes: Camera (broadcast) aur Viewer (live dekhna). Neeche se ① ② ③ me se ek pasand karo — ya mix bata do (masalan "2, par rang 1 wala").</div>
+
+<!-- ============ DESIGN 1 ============ -->
+<div class="design">
+  <div class="design-head">
+    <div class="num">1</div>
+    <div>
+      <div class="design-name">Night Ops</div>
+      <div class="design-mood">Dark surveillance · cyan accent · clean &amp; sharp</div>
+    </div>
+  </div>
+  <div class="phone d-a">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="sb-icons">▮▮▮ <span class="battery"></span></span></div>
+      <div class="appbar">
+        <div class="brand"><span class="brand-dot"></span> HomeCamLive</div>
+        <div class="info-btn">i</div>
+      </div>
+      <div class="scroll">
+        <div class="greeting">Live camera, kahin se bhi</div>
+        <div class="overline">CHOOSE A MODE</div>
+
+        <div class="mode-card">
+          <div class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+          <div class="mode-body">
+            <div class="mode-title">Camera Mode</div>
+            <div class="mode-sub">Is phone ko CCTV banayein</div>
+            <span class="chip">BROADCAST</span>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="mode-card">
+          <div class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div class="mode-body">
+            <div class="mode-title">Viewer Mode</div>
+            <div class="mode-sub">Doosre phone ki live dekhein</div>
+            <span class="chip">WATCH LIVE</span>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="room-card">
+          <div class="overline">ROOM ID</div>
+          <div class="room-value">HOME-7K2M</div>
+          <div class="room-hint">Dono phones me same ID daalein</div>
+        </div>
+        <div class="credit">Developed by <b>Muhammad Kamran Malik</b><br>+923135275771</div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9z"/></svg>Home</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/></svg>Camera</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4V8z"/></svg>Viewer</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DESIGN 2 ============ -->
+<div class="design">
+  <div class="design-head">
+    <div class="num">2</div>
+    <div>
+      <div class="design-name">Command Center</div>
+      <div class="design-mood">Control-room grid · amber accent · bold blocks</div>
+    </div>
+  </div>
+  <div class="phone d-b">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="sb-icons">▮▮▮ <span class="battery"></span></span></div>
+      <div class="appbar">
+        <div class="brand"><span class="brand-dot"></span> HOMECAM<span style="color:var(--accent)">LIVE</span></div>
+        <div class="info-btn">i</div>
+      </div>
+      <div class="scroll">
+        <div class="greeting">Live camera, kahin se bhi</div>
+        <div class="overline">SELECT OPERATION</div>
+
+        <div class="mode-card">
+          <div class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+          <div class="mode-body">
+            <div class="mode-title">CAMERA / BROADCAST</div>
+            <div class="mode-sub">Is phone ko CCTV banayein</div>
+            <span class="chip">● LIVE TRANSMIT</span>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="mode-card">
+          <div class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div class="mode-body">
+            <div class="mode-title">VIEWER / MONITOR</div>
+            <div class="mode-sub">Doosre phone ki live dekhein</div>
+            <span class="chip">▶ REMOTE FEED</span>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="room-card">
+          <div class="overline">ACCESS CODE / ROOM ID</div>
+          <div class="room-value">HOME-7K2M</div>
+          <div class="room-hint">Dono phones me same ID daalein</div>
+        </div>
+        <div class="credit">Developed by <b>Muhammad Kamran Malik</b><br>+923135275771</div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9z"/></svg>Home</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/></svg>Camera</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4V8z"/></svg>Viewer</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DESIGN 3 ============ -->
+<div class="design">
+  <div class="design-head">
+    <div class="num">3</div>
+    <div>
+      <div class="design-name">SafeHome</div>
+      <div class="design-mood">Light &amp; friendly · teal accent · home-security feel</div>
+    </div>
+  </div>
+  <div class="phone d-c">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="sb-icons">▮▮▮ <span class="battery"></span></span></div>
+      <div class="appbar">
+        <div class="brand"><span class="brand-dot"></span> HomeCamLive</div>
+        <div class="info-btn">i</div>
+      </div>
+      <div class="scroll">
+        <div class="greeting">Ghar ko kahin se bhi dekhein</div>
+        <div class="overline">MODE CHUNEIN</div>
+
+        <div class="mode-card">
+          <div class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+          <div class="mode-body">
+            <div class="mode-title">Camera Mode</div>
+            <div class="mode-sub">Is phone ko CCTV banayein</div>
+            <span class="chip">BROADCAST</span>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="mode-card">
+          <div class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div class="mode-body">
+            <div class="mode-title">Viewer Mode</div>
+            <div class="mode-sub">Doosre phone ki live dekhein</div>
+            <span class="chip">WATCH LIVE</span>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="room-card">
+          <div class="overline">ROOM ID</div>
+          <div class="room-value">HOME-7K2M</div>
+          <div class="room-hint">Dono phones me same ID daalein</div>
+        </div>
+        <div class="credit">Developed by <b>Muhammad Kamran Malik</b><br>+923135275771</div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9z"/></svg>Home</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/></svg>Camera</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4V8z"/></svg>Viewer</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

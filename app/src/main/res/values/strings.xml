@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HomeCamLive</string>
+    <string name="developer_name">Muhammad Kamran Malik</string>
+    <string name="developer_contact">+923135275771</string>
+    <string name="channel_name">Camera Stream</string>
+    <string name="channel_desc">HomeCamLive background broadcasting status</string>
+</resources>
