@@ -96,7 +96,7 @@
             android:id="@+id/feedImage"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="FIT_CENTER"
+            android:scaleType="fitCenter"
             android:contentDescription="Live feed" />
         <TextView
             android:id="@+id/feedPlaceholder"

@@ -85,7 +85,7 @@
             android:id="@+id/previewImage"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="FIT_CENTER"
+            android:scaleType="fitCenter"
             android:contentDescription="Camera preview" />
         <TextView
             android:id="@+id/previewPlaceholder"
