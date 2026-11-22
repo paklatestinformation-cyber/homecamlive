@@ -12,8 +12,8 @@ Plan/UI reference: `ui-preview.html` (design 2 "Command Center" selected).
 - [x] Step 4 — Gradle scaffold + GitHub Actions workflow
 - [x] Step 5 — Resources: colors/theme/strings/icon/3 layouts
 - [x] Step 6 — Java: RelayClient, CameraService, MainActivity, CameraActivity, ViewerActivity
-- [ ] Step 7 — Push repo, watch build to green, fix errors if any
-- [ ] Step 8 — Deliver APK download link + usage instructions
+- [x] Step 7 — Push repo, watch build to green, fix errors if any
+- [x] Step 8 — Deliver APK download link + usage instructions
 
 ## Key decisions (22 Nov 2026)
 - Broker: EMQX public `wss://broker.emqx.io:8084/mqtt`, fallback HiveMQ
@@ -27,5 +27,31 @@ Plan/UI reference: `ui-preview.html` (design 2 "Command Center" selected).
 - Package: `com.kamran.homecamlive`, minSdk 26, targetSdk/compileSdk 34, Java 17.
 - Theme: Material3 Dark, navy #0B1220 / card #131E33 / amber #F5A623.
 
+## v2 request (23 Nov 2026) — IN PROGRESS
+- [x] V1 — RelayClient: multi-topic publish + topic-aware callback + selectable subscribe filter
+- [x] V2 — AudioCapture (camera mic -> PCM over MQTT) + AudioPlayer (viewer AudioTrack)
+- [x] V3 — Remote camera flip via `control` topic; status CAM_FRONT/CAM_BACK
+- [x] V4 — Mp4Recorder (MediaCodec H264 + AAC -> MediaMuxer), usable on both phones
+- [x] V5 — UI buttons: camera MIC/FLIP/REC, viewer SOUND/FLIP/REC; RECORD_AUDIO perm
+- [ ] V6 — Push, watch build green, verify release APK
+
+## Decisions (v2)
+- Topics: `homecamlive/<room>/frame`, `/audio` (raw PCM 16 kHz mono 40 ms),
+  `/control` (FLIP, REC_START, REC_STOP), `/status`.
+- Viewer subscribes `homecamlive/<room>/#` (wildcard) on one connection.
+- Camera subscribes **sirf** `homecamlive/<room>/control` (apne frame/audio wapas nahi leta).
+- Recording = local MP4 on each phone via MediaCodec + MediaMuxer fed from the
+  same NV21/PCM stream; viewer REC also sends REC_START so camera phone records.
+- Audio packets: raw PCM16 16 kHz mono, 1280 bytes / 40 ms (~25 msg/s).
+- versionCode 2 / versionName 1.1; FGS type `camera|microphone` (Android 14).
+- Mp4Recorder start par 40 ms silence feed karta hai taake mic band hone par bhi
+  audio track create ho aur MP4 valid rahe.
+
+## DONE (v1)
+Build green (run apk-3), APK verified 5.5 MB.
+Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/download/apk-3/app-debug.apk
+Fix log: (1) XML scaleType `fitCenter` lowercase; (2) workflow needs
+`permissions: contents: write` for release upload.
+
 ## NOW
-Step 7: repo ban kar push kar rahe hain, phir GitHub Actions build ka intezaar.
+V1–V5 code complete. V6 baaki: push + GitHub Actions build green + release verify.

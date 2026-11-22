@@ -9,14 +9,26 @@ feed over the internet). Developer credit: Muhammad Kamran Malik, +923135275771.
   amber #F5A623, line #23314C, text #EAF0FA / #8FA2C0).
 - Free public MQTT-over-WebSocket relay (no own server, no account):
   primary `wss://broker.emqx.io:8084/mqtt`, fallback
-  `wss://broker.hivemq.com:8884/mqtt`. Topic `homecamlive/<roomid>/frame`.
+  `wss://broker.hivemq.com:8884/mqtt`. Topics `homecamlive/<roomid>/frame`,
+  `/audio`, `/control`, `/status`.
 - Camera1 API -> NV21 -> YuvImage JPEG (~45 quality), ~5 fps, QoS 0.
+- Audio: PCM16 16 kHz mono, 40 ms chunks, published to `/audio`; viewer plays
+  via AudioTrack. Control + status on `/control` and `/status`.
+- Remote flip + recording triggered from viewer over the control topic.
 - Camera foreground Service with SurfaceTexture + partial wake lock keeps
   streaming when backgrounded; local preview = same frames via broadcast.
+- Viewer subscribes wildcard `homecamlive/<room>/#`; camera subscribes **only**
+  `homecamlive/<room>/control` so it does not receive its own frames/audio.
 - Room ID stored in SharedPreferences, random `HOME-XXXX`.
+- v2 (23 Nov): versionCode 2 / versionName 1.1; FGS type `camera|microphone`;
+  permissions RECORD_AUDIO + WRITE_EXTERNAL_STORAGE(maxSdkVersion 28).
 
 ## Key files
-- `app/src/main/java/com/kamran/homecamlive/RelayClient.java` — MQTT connect/publish/subscribe
+- `app/src/main/java/com/kamran/homecamlive/RelayClient.java` — MQTT multi-topic
+- `app/src/main/java/com/kamran/homecamlive/AudioCapture.java` — mic -> PCM packets
+- `app/src/main/java/com/kamran/homecamlive/AudioPlayer.java` — PCM -> AudioTrack
+- `app/src/main/java/com/kamran/homecamlive/Mp4Recorder.java` — H264+AAC MP4 muxer
+- `app/src/main/java/com/kamran/homecamlive/Control.java` — command constants
 - `app/src/main/java/com/kamran/homecamlive/CameraService.java` — foreground capture + publish
 - `app/src/main/java/com/kamran/homecamlive/MainActivity.java` — Home / mode select
 - `app/src/main/java/com/kamran/homecamlive/CameraActivity.java` — broadcaster UI
@@ -31,3 +43,6 @@ feed over the internet). Developer credit: Muhammad Kamran Malik, +923135275771.
 
 ## Dated decisions
 - 22 Nov 2026: user picked relay option 1 and UI design 2.
+- 23 Nov 2026: v2 code complete (audio, receiver-side flip, MP4 recording with
+  audio). Push + build verification pending. Workflow already has
+  `permissions: contents: write` from the v1 release fix.

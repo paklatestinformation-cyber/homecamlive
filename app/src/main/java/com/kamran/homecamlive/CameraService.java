@@ -26,19 +26,27 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Foreground camera broadcaster — keeps streaming when the app is backgrounded. */
+/** Foreground camera broadcaster with mic audio, remote flip and MP4 recording. */
 @SuppressWarnings("deprecation")
 public class CameraService extends Service {
     private static final String TAG = "CameraService";
 
     public static final String ACTION_START = "com.kamran.homecamlive.START";
     public static final String ACTION_STOP = "com.kamran.homecamlive.STOP";
+    public static final String ACTION_TOGGLE_MIC = "com.kamran.homecamlive.TOGGLE_MIC";
+    public static final String ACTION_FLIP = "com.kamran.homecamlive.FLIP";
+    public static final String ACTION_REC_START = "com.kamran.homecamlive.REC_START";
+    public static final String ACTION_REC_STOP = "com.kamran.homecamlive.REC_STOP";
+
     public static final String FRAME_EVENT = "com.kamran.homecamlive.FRAME";
     public static final String STATUS_EVENT = "com.kamran.homecamlive.STATUS";
     public static final String EXTRA_FRAME = "frame";
     public static final String EXTRA_STATE = "state";
     public static final String EXTRA_FPS = "fps";
     public static final String EXTRA_MSG = "msg";
+    public static final String EXTRA_MIC = "mic";
+    public static final String EXTRA_REC = "rec";
+    public static final String EXTRA_CAM = "cam";
 
     private static final String CHANNEL_ID = "homecamlive";
     private static final int NOTIF_ID = 11;
@@ -53,8 +61,13 @@ public class CameraService extends Service {
     private SurfaceTexture surfaceTexture;
     private RelayClient relay;
     private PowerManager.WakeLock wakeLock;
+    private AudioCapture audioCapture;
+    private Mp4Recorder recorder;
     private String room = "";
     private int previewW = 640, previewH = 480;
+    private int currentCamId = -1;
+    private String camFacing = "BACK";
+    private volatile boolean micEnabled = true;
     private long lastPublish = 0, fpsWindow = 0;
     private int frameCounter = 0;
 
@@ -73,13 +86,15 @@ public class CameraService extends Service {
         if (now - lastPublish >= FRAME_INTERVAL_MS) {
             lastPublish = now;
             try {
+                Mp4Recorder r = recorder;
+                if (r != null && r.isRecording()) r.feedVideo(data);
                 YuvImage yuv = new YuvImage(data, ImageFormat.NV21, previewW, previewH, null);
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 yuv.compressToJpeg(new Rect(0, 0, previewW, previewH), 45, out);
                 byte[] jpeg = out.toByteArray();
-                if (relay != null) relay.publish(jpeg);
-                Intent frame = new Intent(FRAME_EVENT).putExtra(EXTRA_FRAME, jpeg);
-                LocalBroadcastManager.getInstance(this).sendBroadcast(frame);
+                if (relay != null) relay.publish("frame", jpeg);
+                LocalBroadcastManager.getInstance(this)
+                        .sendBroadcast(new Intent(FRAME_EVENT).putExtra(EXTRA_FRAME, jpeg));
             } catch (Throwable e) {
                 Log.w(TAG, "frame encode failed", e);
             }
@@ -103,9 +118,17 @@ public class CameraService extends Service {
         if (ACTION_STOP.equals(action)) {
             stopBroadcasting();
             stopSelf();
-            return START_NOT_STICKY;
+        } else if (ACTION_TOGGLE_MIC.equals(action)) {
+            toggleMic();
+        } else if (ACTION_FLIP.equals(action)) {
+            flipCamera();
+        } else if (ACTION_REC_START.equals(action)) {
+            startRecording();
+        } else if (ACTION_REC_STOP.equals(action)) {
+            stopRecording();
+        } else {
+            startBroadcasting();
         }
-        startBroadcasting();
         return START_NOT_STICKY;
     }
 
@@ -126,20 +149,37 @@ public class CameraService extends Service {
             @Override public void onDisconnected(String reason) {
                 sendStatus("RECONNECTING", 0, "Relay disconnect, retry…");
             }
-            @Override public void onMessage(byte[] payload) { }
+            @Override public void onMessage(String topic, byte[] payload) {
+                if (!topic.endsWith("/control")) return;
+                String cmd = Control.text(payload);
+                if (Control.FLIP.equals(cmd)) flipCamera();
+                else if (Control.REC_START.equals(cmd)) startRecording();
+                else if (Control.REC_STOP.equals(cmd)) stopRecording();
+            }
             @Override public void onError(String message) {
                 sendStatus("ERROR", 0, message);
                 updateNotification("Relay error — retrying");
             }
         });
-        relay.connect(false);
-        camHandler.post(this::openCamera);
+        relay.connect(true, relay.topic("control")); // sirf control suno; apne frame/audio wapas mat lo
+
+        audioCapture = new AudioCapture(pcm -> {
+            if (!RUNNING.get()) return;
+            if (micEnabled && relay != null) relay.publish("audio", pcm);
+            Mp4Recorder r = recorder;
+            if (r != null && r.isRecording()) r.feedAudio(pcm);
+        });
+        audioCapture.start();
+
+        camHandler.post(() -> openCamera(findBackCamera()));
     }
 
-    private void openCamera() {
+    private void openCamera(int camId) {
+        closeCameraOnly();
         try {
-            int camId = findBackCamera();
             camera = Camera.open(camId);
+            currentCamId = camId;
+            camFacing = facingOf(camId);
             Camera.Parameters params = camera.getParameters();
             Camera.Size size = pickSize(params.getSupportedPreviewSizes());
             previewW = size.width;
@@ -160,11 +200,82 @@ public class CameraService extends Service {
             lastPublish = 0;
             fpsWindow = 0;
             sendStatus("LIVE", 0, "Streaming");
+            publishCameraStatus();
         } catch (Throwable e) {
             Log.e(TAG, "camera open failed", e);
             sendStatus("ERROR", 0, "Camera nahi khul payi: " + e.getMessage());
-            updateNotification("Camera error");
         }
+    }
+
+    private void closeCameraOnly() {
+        try {
+            if (camera != null) {
+                camera.setPreviewCallback(null);
+                camera.stopPreview();
+                camera.release();
+                camera = null;
+            }
+        } catch (Exception ignored) { }
+        if (surfaceTexture != null) {
+            try { surfaceTexture.release(); } catch (Exception ignored) { }
+            surfaceTexture = null;
+        }
+    }
+
+    private void flipCamera() {
+        camHandler.post(() -> {
+            if (!RUNNING.get()) return;
+            try {
+                int n = Camera.getNumberOfCameras();
+                if (n < 2) return;
+                openCamera((currentCamId + 1) % n);
+            } catch (Throwable e) { Log.w(TAG, "flip failed", e); }
+        });
+    }
+
+    private String facingOf(int camId) {
+        Camera.CameraInfo info = new Camera.CameraInfo();
+        Camera.getCameraInfo(camId, info);
+        return info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT ? "FRONT" : "BACK";
+    }
+
+    private void publishCameraStatus() {
+        if (relay == null) return;
+        relay.publish("status", Control.bytes(
+                "FRONT".equals(camFacing) ? Control.CAM_FRONT : Control.CAM_BACK));
+    }
+
+    private synchronized void toggleMic() {
+        micEnabled = !micEnabled;
+        if (relay != null) relay.publish("status",
+                Control.bytes(micEnabled ? Control.MIC_ON : Control.MIC_OFF));
+        sendStatus(RUNNING.get() ? "LIVE" : "OFFLINE", 0, "");
+    }
+
+    private synchronized void startRecording() {
+        Mp4Recorder current = recorder;
+        if (current != null && current.isRecording()) return;
+        if (previewW <= 0 || previewH <= 0) return; // camera abhi open nahi hui
+        Mp4Recorder r = new Mp4Recorder();
+        try {
+            String name = r.start(this, previewW, previewH);
+            recorder = r;
+            if (relay != null) relay.publish("status", Control.bytes(Control.REC_ON));
+            sendStatus(RUNNING.get() ? "LIVE" : "OFFLINE", 0, "Recording: " + name);
+        } catch (Exception e) {
+            Log.e(TAG, "record start failed", e);
+            sendStatus("ERROR", 0, "Recording start nahi hui: " + e.getMessage());
+        }
+    }
+
+    private synchronized void stopRecording() {
+        Mp4Recorder r = recorder;
+        if (r == null) return;
+        String name = r.stop();
+        recorder = null;
+        if (relay != null) relay.publish("status", Control.bytes(Control.REC_OFF));
+        sendStatus(RUNNING.get() ? "LIVE" : "OFFLINE", 0,
+                name == null ? "Recording saved" : "Saved: " + name);
     }
 
     private int findBackCamera() {
@@ -191,22 +302,13 @@ public class CameraService extends Service {
     private synchronized void stopBroadcasting() {
         if (!RUNNING.get()) return;
         RUNNING.set(false);
+        stopRecording();
         if (relay != null) { relay.disconnect(); relay = null; }
-        try {
-            if (camera != null) {
-                camera.setPreviewCallback(null);
-                camera.stopPreview();
-                camera.release();
-                camera = null;
-            }
-        } catch (Exception ignored) { }
-        if (surfaceTexture != null) {
-            try { surfaceTexture.release(); } catch (Exception ignored) { }
-            surfaceTexture = null;
-        }
+        if (audioCapture != null) { audioCapture.stop(); audioCapture = null; }
+        closeCameraOnly();
         try { if (wakeLock.isHeld()) wakeLock.release(); } catch (Exception ignored) { }
         if (camHandler != null) camHandler.removeCallbacksAndMessages(null);
-        sendStatus("OFFLINE", 0, "Broadcast stopped");
+        sendStatus("OFFLINE", 0, "Broadcast band ho gaya");
         stopForeground(true);
     }
 
@@ -251,10 +353,14 @@ public class CameraService extends Service {
     }
 
     private void sendStatus(String state, int fps, String msg) {
+        Mp4Recorder r = recorder;
         Intent i = new Intent(STATUS_EVENT)
                 .putExtra(EXTRA_STATE, state)
                 .putExtra(EXTRA_FPS, fps)
-                .putExtra(EXTRA_MSG, msg);
+                .putExtra(EXTRA_MSG, msg)
+                .putExtra(EXTRA_MIC, micEnabled)
+                .putExtra(EXTRA_REC, r != null && r.isRecording())
+                .putExtra(EXTRA_CAM, camFacing);
         LocalBroadcastManager.getInstance(this).sendBroadcast(i);
     }
 }

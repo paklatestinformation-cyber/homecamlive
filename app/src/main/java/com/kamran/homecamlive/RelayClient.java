@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-/** MQTT over WebSocket relay — works through NAT/firewalls on any network. */
+/** MQTT over WebSocket relay — one connection, all sub-topics via wildcard. */
 public class RelayClient {
     private static final String TAG = "RelayClient";
     private static final String[] BROKERS = {
@@ -26,11 +26,11 @@ public class RelayClient {
     public interface Callback {
         void onConnected(String broker);
         void onDisconnected(String reason);
-        void onMessage(byte[] payload);
+        void onMessage(String topic, byte[] payload);
         void onError(String message);
     }
 
-    private final String topic;
+    private final String base;
     private final String suffix;
     private final Callback cb;
     private final ExecutorService connectExec = Executors.newSingleThreadExecutor();
@@ -40,18 +40,25 @@ public class RelayClient {
     private volatile MqttClient client;
     private volatile boolean active = false;
     private volatile boolean wantSubscribe = false;
+    private volatile String subscribeFilter = null;
 
     public RelayClient(String room, String suffix, Callback cb) {
-        this.topic = "homecamlive/" + room + "/frame";
+        this.base = "homecamlive/" + room;
         this.suffix = suffix;
         this.cb = cb;
     }
 
-    public String getTopic() { return topic; }
+    public String topic(String sub) { return base + "/" + sub; }
 
-    /** subscribe=true for viewer, false for camera broadcaster. */
+    /** subscribe=true receives frame + audio + control + status on one connection. */
     public void connect(final boolean subscribe) {
+        connect(subscribe, null);
+    }
+
+    /** filter=null means all sub-topics (wildcard); otherwise one exact topic. */
+    public void connect(final boolean subscribe, final String filter) {
         wantSubscribe = subscribe;
+        subscribeFilter = filter;
         active = true;
         connectExec.execute(this::attemptConnect);
     }
@@ -72,7 +79,10 @@ public class RelayClient {
                 c.setCallback(new MqttCallbackExtended() {
                     @Override public void connectComplete(boolean reconnect, String serverURI) {
                         if (wantSubscribe) {
-                            try { c.subscribe(topic, 0); }
+                            try {
+                                String filter = subscribeFilter;
+                                c.subscribe(filter != null ? filter : base + "/#", 0);
+                            }
                             catch (Exception e) { Log.w(TAG, "subscribe failed", e); }
                         }
                     }
@@ -80,7 +90,7 @@ public class RelayClient {
                         if (cb != null) cb.onDisconnected(cause == null ? "connection lost" : String.valueOf(cause.getMessage()));
                     }
                     @Override public void messageArrived(String t, MqttMessage m) {
-                        if (cb != null) cb.onMessage(m.getPayload());
+                        if (cb != null) cb.onMessage(t, m.getPayload());
                     }
                     @Override public void deliveryComplete(IMqttDeliveryToken token) { }
                 });
@@ -96,17 +106,20 @@ public class RelayClient {
         }
         if (cb != null) cb.onError("Relay se connect nahi ho paya: " + lastErr);
         if (active) {
-            retryExec.schedule(() -> {
-                if (active) connectExec.execute(this::attemptConnect);
-            }, 5, TimeUnit.SECONDS);
+            try {
+                retryExec.schedule(() -> {
+                    if (active) connectExec.execute(this::attemptConnect);
+                }, 5, TimeUnit.SECONDS);
+            } catch (Exception ignored) { }
         }
     }
 
-    public void publish(final byte[] payload) {
+    public void publish(String sub, final byte[] payload) {
+        final String fullTopic = topic(sub);
         publishExec.execute(() -> {
             MqttClient c = client;
             if (c == null || !c.isConnected()) return;
-            try { c.publish(topic, payload, 0, false); }
+            try { c.publish(fullTopic, payload, 0, false); }
             catch (Exception e) { Log.w(TAG, "publish failed: " + e.getMessage()); }
         });
     }

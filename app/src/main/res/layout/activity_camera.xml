@@ -74,6 +74,18 @@
             android:layout_marginStart="12dp" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/camInfoText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="BACK CAM · MIC ON · REC OFF"
+        android:textColor="@color/text_secondary"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.06"
+        android:gravity="center"
+        android:layout_marginTop="8dp" />
+
     <!-- Preview -->
     <FrameLayout
         android:layout_width="match_parent"
@@ -118,6 +130,53 @@
         android:gravity="center"
         android:layout_marginTop="10dp"
         android:layout_marginBottom="4dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="10dp">
+        <Button
+            android:id="@+id/btnMic"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:text="MIC ON"
+            android:textColor="@color/accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_outline"
+            android:stateListAnimator="@null"
+            android:minWidth="0dp"
+            android:layout_marginEnd="5dp" />
+        <Button
+            android:id="@+id/btnFlip"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:text="FLIP CAM"
+            android:textColor="@color/accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_outline"
+            android:stateListAnimator="@null"
+            android:minWidth="0dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp" />
+        <Button
+            android:id="@+id/btnRecord"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:text="RECORD"
+            android:textColor="@color/accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_outline"
+            android:stateListAnimator="@null"
+            android:minWidth="0dp"
+            android:layout_marginStart="5dp" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnToggle"
