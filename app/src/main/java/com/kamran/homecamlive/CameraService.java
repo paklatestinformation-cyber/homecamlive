@@ -93,9 +93,10 @@ public class CameraService extends Service {
     private long lastPublish = 0;
     private long fpsWindow = 0;
     private int frameCounter = 0;
+    private long lastPublish2 = 0;
 
     private final Camera.PreviewCallback frameCallback = (data, cam) -> {
-        if (!RUNNING.get() || previewW == 0) { cam.addCallbackBuffer(data); return; }
+        if (!RUNNING || previewW == 0) { cam.addCallbackBuffer(data); return; }
         countFps();
         if (System.currentTimeMillis() - lastPublish >= FRAME_INTERVAL_MS) {
             lastPublish = System.currentTimeMillis();
@@ -106,7 +107,7 @@ public class CameraService extends Service {
     };
 
     private final Camera.PreviewCallback secondCallback = (data, cam) -> {
-        if (!RUNNING.get() || !dualMode || secondW == 0) { cam.addCallbackBuffer(data); return; }
+        if (!RUNNING || !dualMode || secondW == 0) { cam.addCallbackBuffer(data); return; }
         if (System.currentTimeMillis() - lastPublish2 >= FRAME_INTERVAL_MS) {
             lastPublish2 = System.currentTimeMillis();
             handleFrame(data, secondW, secondH, secondRotation, mirrorSecond,
@@ -114,7 +115,6 @@ public class CameraService extends Service {
         }
         cam.addCallbackBuffer(data);
     };
-    private long lastPublish2 = 0;
 
     private void countFps() {
         frameCounter++;
@@ -209,8 +209,8 @@ public class CameraService extends Service {
     @Override public IBinder onBind(Intent intent) { return null; }
 
     private synchronized void startBroadcasting() {
-        if (RUNNING.get()) return;
-        RUNNING.set(true);
+        if (RUNNING) return;
+        RUNNING = true;
         room = Prefs.sanitize(Prefs.getRoom(this));
         startForeground(NOTIF_ID, buildNotification("Connecting…"));
         try { wakeLock.acquire(); } catch (Exception ignored) { }
@@ -240,7 +240,7 @@ public class CameraService extends Service {
         relay.connect(true, relay.topic("control"));
 
         audioCapture = new AudioCapture(pcm -> {
-            if (!RUNNING.get()) return;
+            if (!RUNNING) return;
             if (micEnabled && relay != null) relay.publish("audio", pcm);
             Mp4Recorder r = recorder;
             if (r != null && r.isRecording()) r.feedAudio(pcm);
@@ -391,7 +391,7 @@ public class CameraService extends Service {
 
     private void startDual() {
         camHandler.post(() -> {
-            if (!RUNNING.get() || dualMode) return;
+            if (!RUNNING || dualMode) return;
             int n = Camera.getNumberOfCameras();
             if (n < 2) {
                 publishStatus(Control.DUAL_NO);
@@ -429,7 +429,7 @@ public class CameraService extends Service {
 
     private void flipCamera() {
         camHandler.post(() -> {
-            if (!RUNNING.get()) return;
+            if (!RUNNING) return;
             if (dualMode) {
                 sendStatus("LIVE", 0, "Dual view me dono camera already dikhte hain");
                 return;
@@ -457,7 +457,7 @@ public class CameraService extends Service {
     private synchronized void toggleMic() {
         micEnabled = !micEnabled;
         publishStatus(micEnabled ? Control.MIC_ON : Control.MIC_OFF);
-        sendStatus(RUNNING.get() ? "LIVE" : "OFFLINE", 0, "");
+        sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0, "");
     }
 
     private synchronized void startRecording() {
@@ -471,7 +471,7 @@ public class CameraService extends Service {
             String name = r.start(this, w, h);
             recorder = r;
             publishStatus(Control.REC_ON);
-            sendStatus(RUNNING.get() ? "LIVE" : "OFFLINE", 0, "Recording: " + name);
+            sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0, "Recording: " + name);
         } catch (Exception e) {
             Log.e(TAG, "record start failed", e);
             sendStatus("ERROR", 0, "Recording start nahi hui: " + e.getMessage());
@@ -484,7 +484,7 @@ public class CameraService extends Service {
         String name = r.stop();
         recorder = null;
         publishStatus(Control.REC_OFF);
-        sendStatus(RUNNING.get() ? "LIVE" : "OFFLINE", 0,
+        sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0,
                 name == null ? "Recording saved" : "Saved: " + name);
     }
 
@@ -499,8 +499,8 @@ public class CameraService extends Service {
     }
 
     private synchronized void stopBroadcasting() {
-        if (!RUNNING.get()) return;
-        RUNNING.set(false);
+        if (!RUNNING) return;
+        RUNNING = false;
         dualMode = false;
         stopRecording();
         closeSecondCamera();

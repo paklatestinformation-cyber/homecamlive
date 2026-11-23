@@ -95,8 +95,8 @@ public class Mp4Recorder {
         try {
             byte[] yuv = new byte[w * h * 3 / 2];
             int yLen = w * h;
-            for (int i = 0; i < yLen; i++) yuv[i] = 16;
-            for (int i = yLen; i < yuv.length; i++) yuv[i] = 128;
+            for (int i = 0; i < yLen; i++) yuv[i] = (byte) 16;
+            for (int i = yLen; i < yuv.length; i++) yuv[i] = (byte) 128;
             int idx = videoCodec.dequeueInputBuffer(100000);
             if (idx >= 0) {
                 ByteBuffer bb = videoCodec.getInputBuffer(idx);
