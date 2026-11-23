@@ -136,6 +136,54 @@
             android:src="@drawable/ic_expand"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Fullscreen" />
+
+        <LinearLayout
+            android:id="@+id/dualFeed"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:visibility="gone">
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+                <ImageView
+                    android:id="@+id/feedBackImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Back camera feed" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:layout_margin="6dp"
+                    android:text="BACK"
+                    android:textColor="@color/accent"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+                <ImageView
+                    android:id="@+id/feedFrontImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Front camera feed" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:layout_margin="6dp"
+                    android:text="FRONT"
+                    android:textColor="@color/accent"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
+        </LinearLayout>
     </FrameLayout>
 
     <LinearLayout
@@ -162,6 +210,20 @@
             android:layout_height="42dp"
             android:layout_weight="1"
             android:text="FLIP CAM"
+            android:textColor="@color/accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_outline"
+            android:stateListAnimator="@null"
+            android:minWidth="0dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp" />
+        <Button
+            android:id="@+id/btnSplit"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:text="SPLIT"
             android:textColor="@color/accent"
             android:textSize="11sp"
             android:textStyle="bold"

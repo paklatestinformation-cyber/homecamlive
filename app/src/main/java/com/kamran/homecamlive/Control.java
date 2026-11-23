@@ -12,6 +12,10 @@ public final class Control {
     public static final String MIC_OFF = "MIC_OFF";
     public static final String REC_ON = "REC_ON";
     public static final String REC_OFF = "REC_OFF";
+    public static final String DUAL_ON = "DUAL_ON";
+    public static final String DUAL_OFF = "DUAL_OFF";
+    public static final String DUAL_NO = "DUAL_NO";
+    public static final String DUAL_FAIL = "DUAL_FAIL";
 
     private Control() { }
 

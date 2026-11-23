@@ -2,7 +2,19 @@
 
 ## What
 One Android APK, two modes: Camera (CCTV broadcaster) and Viewer (live remote
-feed over the internet). Developer credit: Muhammad Kamran Malik, +923135275771.
+feed over the internet). **Display name (v3): "Personal CCTV"** (was HomeCamLive;
+package/id/repo stay `com.kamran.homecamlive` / `homecamlive`). Developer credit:
+Muhammad Kamran Malik, +923135275771.
+
+## v3 request (23 Nov 2026) — IN PROGRESS
+User report/asks:
+- RECORD start hota hai par MP4 device par save nahi hota — fix the save path.
+- Camera rotation galat side dikhata hai — fix orientation for broadcast + recording.
+- New option: **front + back dono camera ek hi screen par** (split/dual view).
+- **Full-screen view** option in Viewer.
+- Existing manual camera flip option **remove nahi karna** — dono options rahen.
+- App name change karke `Personal CCTV` karna.
+- Video ke upar **live time/date overlay** — aur ye overlay recording mein bhi save ho.
 
 ## Architecture
 - Native Java UI, Material3 Dark "Command Center" (navy #0B1220, card #131E33,

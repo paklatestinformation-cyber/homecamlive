@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fsRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black">
+
+    <ImageView
+        android:id="@+id/fsImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:contentDescription="Fullscreen live feed" />
+
+    <TextView
+        android:id="@+id/fsLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="16dp"
+        android:text="PERSONAL CCTV · LIVE"
+        android:textColor="@color/accent"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/fsClose"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="12dp"
+        android:text="CLOSE"
+        android:textColor="@color/on_accent"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:background="@drawable/bg_btn"
+        android:stateListAnimator="@null"
+        android:minWidth="0dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp" />
+</FrameLayout>

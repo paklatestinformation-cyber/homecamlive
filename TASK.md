@@ -58,6 +58,15 @@ Build green (run 45081217616, commit 40aa121), release `apk-4`,
 APK 5,720,540 bytes verified (`classes.dex`, `AndroidManifest.xml`, `resources.arsc`).
 Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/download/apk-4/app-debug.apk
 
+## v3 request (23 Nov 2026) — IN PROGRESS
+- [ ] R1 — MP4 save fix: muxer ko temp file par likho, phir MediaStore me copy karo; valid file verify karo
+- [ ] R2 — Rotation fix: sensor + device orientation se frame rotate, front mirror; broadcast + recording dono
+- [ ] R3 — Dual camera option: front + back ek hi screen par (service publishes frame_front/frame_back)
+- [ ] R4 — Fullscreen view option in Viewer (aur camera preview par bhi)
+- [ ] R5 — Manual FLIP option bana rahega (dono options)
+- [ ] R6 — App display name: `Personal CCTV` (package/repo same)
+- [ ] R7 — Live time/date overlay frames par bake karo — recording me bhi save ho
+- [ ] R8 — Push, build green, release APK verify
+
 ## NOW
-v2 shipped. Agar user test mein koi issue report kare (audio/flip/record), usi
-file ko dobara patch kar ke naya build/release banana hai.
+R1 se shuru: Mp4Recorder ko robust save path dena hai.

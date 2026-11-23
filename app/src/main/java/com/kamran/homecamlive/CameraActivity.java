@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,34 +25,56 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 public class CameraActivity extends AppCompatActivity {
     private static final int REQ_PERMS = 21;
 
-    private ImageView previewImage;
+    private ImageView previewImage, camBackImage, camFrontImage;
     private TextView previewPlaceholder, recBadge, statusText, fpsText, roomText, recDot, camInfoText;
-    private Button btnToggle, btnMic, btnFlip, btnRecord;
+    private LinearLayout dualPreview;
+    private Button btnToggle, btnMic, btnFlip, btnDual, btnRecord;
+    private final FullscreenView fullscreen = new FullscreenView();
+
     private boolean registered = false;
-    private boolean micOn = true, recOn = false;
+    private boolean micOn = true, recOn = false, dualOn = false;
     private String camFacing = "BACK";
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (intent == null || intent.getAction() == null) return;
-            if (CameraService.FRAME_EVENT.equals(intent.getAction())) {
-                byte[] frame = intent.getByteArrayExtra(CameraService.EXTRA_FRAME);
-                if (frame != null) {
-                    Bitmap bmp = BitmapFactory.decodeByteArray(frame, 0, frame.length);
-                    if (bmp != null) {
-                        previewImage.setImageBitmap(bmp);
-                        previewPlaceholder.setVisibility(View.GONE);
-                        recBadge.setVisibility(View.VISIBLE);
-                    }
-                }
-            } else if (CameraService.STATUS_EVENT.equals(intent.getAction())) {
-                applyState(intent.getStringExtra(CameraService.EXTRA_STATE),
-                        intent.getIntExtra(CameraService.EXTRA_FPS, 0),
-                        intent.getStringExtra(CameraService.EXTRA_MSG),
-                        intent.getBooleanExtra(CameraService.EXTRA_MIC, micOn),
-                        intent.getBooleanExtra(CameraService.EXTRA_REC, recOn),
-                        intent.getStringExtra(CameraService.EXTRA_CAM));
+            String action = intent.getAction();
+            byte[] jpeg = intent.getByteArrayExtra(CameraService.EXTRA_FRAME);
+            if (jpeg == null) return;
+            Bitmap bmp = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
+            if (bmp == null) return;
+
+            if (CameraService.BACK_FRAME_EVENT.equals(action)) {
+                dualOn = true;
+                dualPreview.setVisibility(View.VISIBLE);
+                previewImage.setVisibility(View.GONE);
+                previewPlaceholder.setVisibility(View.GONE);
+                camBackImage.setImageBitmap(bmp);
+                if (fullscreen.isShowing()) fullscreen.setBitmap(bmp);
+            } else if (CameraService.FRONT_FRAME_EVENT.equals(action)) {
+                dualOn = true;
+                camFrontImage.setImageBitmap(bmp);
+            } else if (CameraService.FRAME_EVENT.equals(action)) {
+                previewImage.setImageBitmap(bmp);
+                previewImage.setVisibility(View.VISIBLE);
+                previewPlaceholder.setVisibility(View.GONE);
+                fullscreen.setBitmap(bmp);
             }
+            recBadge.setVisibility(View.VISIBLE);
+            refreshInfo();
+        }
+    };
+
+    private final BroadcastReceiver statusReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null || !CameraService.STATUS_EVENT.equals(intent.getAction())) return;
+            applyState(intent.getStringExtra(CameraService.EXTRA_STATE),
+                    intent.getIntExtra(CameraService.EXTRA_FPS, 0),
+                    intent.getStringExtra(CameraService.EXTRA_MSG),
+                    intent.getBooleanExtra(CameraService.EXTRA_MIC, micOn),
+                    intent.getBooleanExtra(CameraService.EXTRA_REC, recOn),
+                    intent.getBooleanExtra(CameraService.EXTRA_DUAL, dualOn),
+                    intent.getStringExtra(CameraService.EXTRA_CAM));
         }
     };
 
@@ -67,9 +90,13 @@ public class CameraActivity extends AppCompatActivity {
         roomText = findViewById(R.id.roomText);
         recDot = findViewById(R.id.recDot);
         camInfoText = findViewById(R.id.camInfoText);
+        dualPreview = findViewById(R.id.dualPreview);
+        camBackImage = findViewById(R.id.camBackImage);
+        camFrontImage = findViewById(R.id.camFrontImage);
         btnToggle = findViewById(R.id.btnToggle);
         btnMic = findViewById(R.id.btnMic);
         btnFlip = findViewById(R.id.btnFlip);
+        btnDual = findViewById(R.id.btnDual);
         btnRecord = findViewById(R.id.btnRecord);
 
         roomText.setText(Prefs.getRoom(this));
@@ -80,28 +107,37 @@ public class CameraActivity extends AppCompatActivity {
             else serviceAction(CameraService.ACTION_TOGGLE_MIC);
         });
         btnFlip.setOnClickListener(v -> serviceAction(CameraService.ACTION_FLIP));
-        btnRecord.setOnClickListener(v -> {
-            if (recOn) serviceAction(CameraService.ACTION_REC_STOP);
-            else serviceAction(CameraService.ACTION_REC_START);
+        btnDual.setOnClickListener(v -> serviceAction(dualOn
+                ? CameraService.ACTION_DUAL_STOP : CameraService.ACTION_DUAL_START));
+        btnRecord.setOnClickListener(v -> serviceAction(recOn
+                ? CameraService.ACTION_REC_STOP : CameraService.ACTION_REC_START));
+        findViewById(R.id.btnCamFullscreen).setOnClickListener(v -> {
+            Bitmap b = CamBitmap.capture(previewImage);
+            if (b == null) b = CamBitmap.capture(camBackImage);
+            fullscreen.show(this, b);
         });
-        refreshUi();
+        refreshInfo();
     }
 
     @Override protected void onStart() {
         super.onStart();
-        LocalBroadcastManager.getInstance(this).registerReceiver(receiver,
-                new IntentFilter(CameraService.FRAME_EVENT));
-        LocalBroadcastManager.getInstance(this).registerReceiver(receiver,
-                new IntentFilter(CameraService.STATUS_EVENT));
+        LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
+        lbm.registerReceiver(receiver, new IntentFilter(CameraService.FRAME_EVENT));
+        lbm.registerReceiver(receiver, new IntentFilter(CameraService.BACK_FRAME_EVENT));
+        lbm.registerReceiver(receiver, new IntentFilter(CameraService.FRONT_FRAME_EVENT));
+        lbm.registerReceiver(statusReceiver, new IntentFilter(CameraService.STATUS_EVENT));
         registered = true;
-        refreshUi();
+        refreshInfo();
     }
 
     @Override protected void onStop() {
         if (registered) {
-            LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
+            LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
+            lbm.unregisterReceiver(receiver);
+            lbm.unregisterReceiver(statusReceiver);
             registered = false;
         }
+        fullscreen.hide();
         super.onStop();
     }
 
@@ -113,11 +149,11 @@ public class CameraActivity extends AppCompatActivity {
         startService(new Intent(this, CameraService.class).setAction(action));
     }
 
-    private void refreshUi() {
+    private void refreshInfo() {
         if (CameraService.isRunning()) {
-            applyState("LIVE", 0, "Streaming", micOn, recOn, camFacing);
+            applyState("LIVE", 0, "", micOn, recOn, dualOn, camFacing);
         } else {
-            applyState("OFFLINE", 0, "", micOn, false, camFacing);
+            applyState("OFFLINE", 0, "", micOn, false, false, camFacing);
         }
     }
 
@@ -126,10 +162,16 @@ public class CameraActivity extends AppCompatActivity {
             Intent i = new Intent(this, CameraService.class).setAction(CameraService.ACTION_STOP);
             startService(i);
             previewImage.setImageBitmap(null);
+            camBackImage.setImageBitmap(null);
+            camFrontImage.setImageBitmap(null);
+            previewImage.setVisibility(View.VISIBLE);
+            dualPreview.setVisibility(View.GONE);
             previewPlaceholder.setVisibility(View.VISIBLE);
             recBadge.setVisibility(View.GONE);
             recOn = false;
-            applyState("OFFLINE", 0, "Broadcast band ho gaya", micOn, false, camFacing);
+            dualOn = false;
+            fullscreen.hide();
+            applyState("OFFLINE", 0, "Broadcast band ho gaya", micOn, false, false, camFacing);
         } else {
             if (!hasPermissions()) {
                 requestPerms();
@@ -139,7 +181,7 @@ public class CameraActivity extends AppCompatActivity {
             ContextCompat.startForegroundService(this, i);
             previewPlaceholder.setVisibility(View.VISIBLE);
             previewPlaceholder.setText("Camera aur mic shuru ho rahe hain…");
-            applyState("STARTING", 0, "Camera shuru ho rahi hai…", micOn, false, camFacing);
+            applyState("STARTING", 0, "Camera shuru ho rahi hai…", micOn, false, false, camFacing);
         }
     }
 
@@ -170,21 +212,31 @@ public class CameraActivity extends AppCompatActivity {
         }
     }
 
-    private void applyState(String state, int fps, String msg, boolean mic, boolean rec, String cam) {
+    private void applyState(String state, int fps, String msg, boolean mic, boolean rec,
+                            boolean dual, String cam) {
         micOn = mic;
         recOn = rec;
+        dualOn = dual;
         if (cam != null) camFacing = cam;
         fpsText.setText(fps + " fps");
         btnMic.setText(micOn ? "MIC ON" : "MIC OFF");
         btnRecord.setText(recOn ? "STOP REC" : "RECORD");
-        camInfoText.setText(camFacing + " CAM · MIC " + (micOn ? "ON" : "OFF") + " · REC " + (recOn ? "ON" : "OFF"));
+        btnDual.setText(dualOn ? "SINGLE" : "DUAL");
+        if (dualOn) {
+            dualPreview.setVisibility(View.VISIBLE);
+            previewImage.setVisibility(View.GONE);
+        } else {
+            dualPreview.setVisibility(View.GONE);
+            previewImage.setVisibility(View.VISIBLE);
+        }
+        camInfoText.setText((dualOn ? "FRONT + BACK" : camFacing + " CAM")
+                + " · MIC " + (micOn ? "ON" : "OFF") + " · REC " + (recOn ? "ON" : "OFF"));
 
         if ("LIVE".equals(state)) {
-            statusText.setText("STREAMING");
+            statusText.setText(dualOn ? "DUAL LIVE" : "STREAMING");
             statusText.setTextColor(ContextCompat.getColor(this, R.color.accent));
             recDot.setText("● LIVE");
             recDot.setTextColor(ContextCompat.getColor(this, R.color.rec));
-            recBadge.setVisibility(View.VISIBLE);
             btnToggle.setText("STOP BROADCAST");
         } else if ("STARTING".equals(state) || "RECONNECTING".equals(state)) {
             statusText.setText(state);
@@ -207,6 +259,16 @@ public class CameraActivity extends AppCompatActivity {
             recBadge.setVisibility(View.GONE);
             btnToggle.setText("START BROADCAST");
             if (msg != null && !msg.isEmpty()) previewPlaceholder.setText(msg);
+        }
+    }
+
+    /** Small helper avoids an extra class for grabbing the currently shown frame. */
+    static final class CamBitmap {
+        static Bitmap capture(ImageView iv) {
+            if (iv == null || iv.getDrawable() == null) return null;
+            android.graphics.drawable.Drawable d = iv.getDrawable();
+            if (!(d instanceof android.graphics.drawable.BitmapDrawable)) return null;
+            return ((android.graphics.drawable.BitmapDrawable) d).getBitmap();
         }
     }
 }

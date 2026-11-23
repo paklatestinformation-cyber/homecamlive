@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void showAbout() {
         new AlertDialog.Builder(this)
-                .setTitle("HomeCamLive")
+                .setTitle("Personal CCTV")
                 .setMessage("Ek phone ko CCTV banayein aur doosre se live dekhein — kahin se bhi, mobile data par bhi.\n\nDeveloper: Muhammad Kamran Malik\nContact: +923135275771")
                 .setPositiveButton("OK", null)
                 .show();
