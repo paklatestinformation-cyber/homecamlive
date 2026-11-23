@@ -66,8 +66,15 @@ Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/dow
 - [x] R5 — Manual FLIP option bana rahega (dono options)
 - [x] R6 — App display name: `Personal CCTV` (package/repo same)
 - [x] R7 — Live time/date overlay frames par bake — recording me bhi save hota hai
-- [ ] R8 — Push, build green, release APK verify
+- [x] R8 — Push, build green, release APK verify
+
+## DONE (v3)
+Build green (run 45275319298, commit e69d55f), release `apk-6`,
+APK 5,730,648 bytes verified (`classes.dex`, `AndroidManifest.xml`, `resources.arsc`).
+Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/download/apk-6/app-debug.apk
+Compile fixes: `RUNNING.get()/set()` -> plain boolean, `lastPublish2` forward ref,
+`(byte) 16/128` casts in Mp4Recorder.
 
 ## NOW
-Compile errors fix ho gaye (RUNNING boolean .get/.set, forward ref, byte cast).
-Build dobara chal raha hai.
+v3 shipped. Device test baaki: recording file Gallery/Movies/HomeCamLive me dikhe ya nahi,
+dual camera support (kuch phones par second camera open fail ho sakta hai).

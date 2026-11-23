@@ -58,3 +58,9 @@ User report/asks:
 - 23 Nov 2026: v2 shipped — audio, receiver-side flip, MP4 recording with audio.
   versionCode 2 / versionName 1.1; run 45081217616 green; release apk-4
   (5,720,540 bytes). Workflow has `permissions: contents: write` from v1 fix.
+- 24 Nov 2026: v3 shipped as **Personal CCTV** (display name only; package/repo
+  unchanged). versionCode 3 / versionName 1.2; run 45275319298 green; release apk-6
+  (5,730,648 bytes). Adds robust MP4 save (temp file -> MediaStore copy),
+  sensor/device rotation fix + front mirror, dual front/back split view,
+  fullscreen overlay, and baked-in live date/time overlay.
+  Dual mode needs two cameras open at once; unsupported phones get DUAL_FAIL status.
