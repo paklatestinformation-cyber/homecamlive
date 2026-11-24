@@ -75,7 +75,7 @@ User report/asks:
 - Decision: static web viewer GitHub Pages par fixed URL
   `https://paklatestinformation-cyber.github.io/homecamlive/` — repo ka `docs/` folder.
   Browser page MQTT(WebSocket) se same `homecamlive/<room>/#` subscribe karega.
-- Implementation done (awaiting build/release):
+- Implementation SHIPPED 24 Nov 2026 (awaiting device test):
   - `Mp4Recorder.java` rewritten: Q+ par MediaStore `openFileDescriptor` se seedha
     final MP4, pre-Q par public `Movies/HomeCamLive` File; temp copy/delete hata diya.
     Dono encoder tracks ke ready hone tak 1.5 s wait; na ho to start fail with error.
@@ -85,3 +85,6 @@ User report/asks:
     `mqtt.min.js` (329 KB), `.nojekyll`. Controls: MIC, CAM MIC, FLIP,
     SPLIT/DUAL, FULLSCREEN, RECORD/STOP (WebM download), SNAPSHOT, EVENT LOG.
   - `PROJECT_PLAN.md` + `PRD.md` web code se pehle likhe gaye.
+  - Build: commit `ddf1133`, run `45357117257` attempt 2 green (pehla attempt
+    Maven Central 429 se fail tha), release `apk-7`, APK 5,731,232 bytes verified.
+  - GitHub Pages enabled via API from `main:/docs`; fixed URL returns 200.

@@ -85,8 +85,10 @@ me kholo → CCTV turant), us page par saare controls + recording.
 - [x] V3 — versionCode 4 / versionName 1.3.
 - [x] V4 — Static web viewer in `docs/`: index.html, styles.css, app.js,
       vendored mqtt.min.js, .nojekyll. Fixed URL GitHub Pages.
-- [ ] V5 — Push + GitHub Actions build green, release `apk-7` verify.
-- [ ] V6 — Device test: MP4 Movies/HomeCamLive me >0 bytes; web page live + controls.
+- [x] V5 — Push + GitHub Actions build green (run 45357117257, attempt 2 after
+      Maven Central 429), release `apk-7` (5,731,232 bytes) verified with unzip.
+- [x] V6 — GitHub Pages enabled from `docs/`; fixed URL returns 200 with title
+      and scripts. Browser preview opened. Device test ab user ke haath me hai.
 
 ## Decisions (v4)
 - Fixed URL: https://paklatestinformation-cyber.github.io/homecamlive/ (repo docs/).
@@ -99,5 +101,6 @@ me kholo → CCTV turant), us page par saare controls + recording.
   race khatam. Is_PENDING clear + size verify stop par.
 
 ## NOW
-Code complete; build/release baaki. Agla step: commit + push, Actions green,
-release apk-7, phir user ko fixed web URL + APK link dena.
+v4 shipped: apk-7 + fixed web URL live. User ko bas APK install karke same Room ID
+se test karna hai: camera phone par RECORD/STOP → MP4 Movies/HomeCamLive me check;
+browser par fixed URL kholkar controls test karne hain.
