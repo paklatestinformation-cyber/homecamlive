@@ -88,3 +88,8 @@ User report/asks:
   - Build: commit `ddf1133`, run `45357117257` attempt 2 green (pehla attempt
     Maven Central 429 se fail tha), release `apk-7`, APK 5,731,232 bytes verified.
   - GitHub Pages enabled via API from `main:/docs`; fixed URL returns 200.
+  - 24 Nov clarification: user wants PC access from ANY location when the second
+    phone is unavailable. The GitHub Pages URL IS that fixed address — a permanent
+    URL, not a device IP. `127.0.0.1` local preview is phone-only; never give it
+    as the PC address. Camera phone must stay online with broadcast ON; PC only
+    needs a browser + internet + the same Room ID.
