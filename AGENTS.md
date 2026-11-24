@@ -64,3 +64,24 @@ User report/asks:
   sensor/device rotation fix + front mirror, dual front/back split view,
   fullscreen overlay, and baked-in live date/time overlay.
   Dual mode needs two cameras open at once; unsupported phones get DUAL_FAIL status.
+
+## v4 request (24 Nov 2026) — IN PROGRESS
+User report/asks:
+- **Recording abhi bhi device par save nahi ho raha** — dobara root-cause karo.
+- Add a **fixed web address** (browser me kholo → CCTV view turant chal jaye).
+  Har baar URL change nahi hona chahiye.
+- Us web page par **saare controls** ho: live view, audio, flip, dual/split,
+  fullscreen, aur **recording**.
+- Decision: static web viewer GitHub Pages par fixed URL
+  `https://paklatestinformation-cyber.github.io/homecamlive/` — repo ka `docs/` folder.
+  Browser page MQTT(WebSocket) se same `homecamlive/<room>/#` subscribe karega.
+- Implementation done (awaiting build/release):
+  - `Mp4Recorder.java` rewritten: Q+ par MediaStore `openFileDescriptor` se seedha
+    final MP4, pre-Q par public `Movies/HomeCamLive` File; temp copy/delete hata diya.
+    Dono encoder tracks ke ready hone tak 1.5 s wait; na ho to start fail with error.
+    Stop par IS_PENDING clear + `OpenableColumns.SIZE` verify.
+  - `versionCode 4`, `versionName '1.3'`.
+  - `docs/` me static viewer: `index.html`, `styles.css`, `app.js`, vendored
+    `mqtt.min.js` (329 KB), `.nojekyll`. Controls: MIC, CAM MIC, FLIP,
+    SPLIT/DUAL, FULLSCREEN, RECORD/STOP (WebM download), SNAPSHOT, EVENT LOG.
+  - `PROJECT_PLAN.md` + `PRD.md` web code se pehle likhe gaye.

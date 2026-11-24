@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0B1220">
+  <title>Personal CCTV — Web Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">PC</div>
+      <div>
+        <h1>PERSONAL CCTV</h1>
+        <p>Command Center · Web Viewer</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="connPill" class="pill pill-off">OFFLINE</span>
+      <button id="btnAbout" class="icon-btn" type="button" aria-label="About">i</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card setup-card">
+      <div class="card-head">
+        <h2>CONNECTION</h2>
+        <span class="hint">Same Room ID on phone + browser</span>
+      </div>
+      <div class="setup-row">
+        <label class="field">
+          <span>ROOM ID</span>
+          <input id="roomInput" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="HOME-1234" maxlength="32">
+        </label>
+        <button id="btnConnect" class="btn btn-primary" type="button">CONNECT</button>
+        <button id="btnDisconnect" class="btn btn-ghost" type="button">DISCONNECT</button>
+      </div>
+      <div class="meta-row">
+        <span>Relay: <b id="brokerText">—</b></span>
+        <span>Frames: <b id="fpsText">0</b>/s</span>
+        <span>Last event: <b id="eventText">—</b></span>
+      </div>
+    </section>
+
+    <section class="stage-wrap" id="stageWrap">
+      <div class="stage" id="stage">
+        <canvas id="feed" width="640" height="360"></canvas>
+
+        <div class="dual" id="dualPane" hidden>
+          <div class="dual-pane">
+            <span class="pane-label">BACK</span>
+            <canvas id="feedBack" width="480" height="360"></canvas>
+          </div>
+          <div class="dual-pane">
+            <span class="pane-label">FRONT</span>
+            <canvas id="feedFront" width="480" height="360"></canvas>
+          </div>
+        </div>
+
+        <div class="stage-overlay" id="stageOverlay">
+          <div class="live-tag"><span class="dot"></span>LIVE</div>
+          <div class="stage-room" id="stageRoom">ROOM —</div>
+          <div class="stage-clock" id="stageClock">--:--:--</div>
+        </div>
+
+        <div class="placeholder" id="placeholder">
+          <div class="placeholder-icon">◉</div>
+          <p>Connect with your Room ID to start the live feed.</p>
+        </div>
+
+        <div class="rec-badge" id="recBadge" hidden>REC</div>
+
+        <button class="stage-exit" id="btnExitFull" type="button" hidden>EXIT FULLSCREEN</button>
+      </div>
+    </section>
+
+    <section class="card controls-card">
+      <div class="card-head">
+        <h2>CONTROLS</h2>
+        <span class="hint">Commands go to the camera phone</span>
+      </div>
+
+      <div class="control-grid">
+        <button class="ctrl" id="btnMic" type="button">
+          <span class="ctrl-key">MIC</span>
+          <span class="ctrl-val" id="micVal">ON</span>
+        </button>
+        <button class="ctrl" id="btnCamMic" type="button">
+          <span class="ctrl-key">CAM MIC</span>
+          <span class="ctrl-val" id="camMicVal">ON</span>
+        </button>
+        <button class="ctrl" id="btnFlip" type="button">
+          <span class="ctrl-key">FLIP</span>
+          <span class="ctrl-val" id="camVal">BACK</span>
+        </button>
+        <button class="ctrl" id="btnSplit" type="button">
+          <span class="ctrl-key">VIEW</span>
+          <span class="ctrl-val" id="splitVal">SINGLE</span>
+        </button>
+        <button class="ctrl" id="btnFull" type="button">
+          <span class="ctrl-key">SCREEN</span>
+          <span class="ctrl-val">FULL</span>
+        </button>
+        <button class="ctrl ctrl-rec" id="btnRecord" type="button">
+          <span class="ctrl-key">RECORD</span>
+          <span class="ctrl-val" id="recVal">START</span>
+        </button>
+        <button class="ctrl" id="btnSnapshot" type="button">
+          <span class="ctrl-key">SNAP</span>
+          <span class="ctrl-val">JPG</span>
+        </button>
+      </div>
+
+      <div class="log-box">
+        <div class="log-head">EVENT LOG</div>
+        <div id="log" class="log"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Developed by <b>Muhammad Kamran Malik</b> · +923135275771</span>
+    <span>Fixed viewer · no install needed</span>
+  </footer>
+
+  <div class="modal" id="aboutModal" hidden>
+    <div class="modal-card">
+      <h2>PERSONAL CCTV</h2>
+      <p>Live remote CCTV over the internet using a free public MQTT/WebSocket relay.</p>
+      <p>Enter the same Room ID as the camera phone, connect, then use the controls.</p>
+      <p class="credit">Developed by Muhammad Kamran Malik · +923135275771</p>
+      <button class="btn btn-primary" id="btnCloseAbout" type="button">CLOSE</button>
+    </div>
+  </div>
+
+  <script src="mqtt.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

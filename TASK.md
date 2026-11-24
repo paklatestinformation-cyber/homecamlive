@@ -75,6 +75,29 @@ Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/dow
 Compile fixes: `RUNNING.get()/set()` -> plain boolean, `lastPublish2` forward ref,
 `(byte) 16/128` casts in Mp4Recorder.
 
+## v4 request (24 Nov 2026) — IN PROGRESS
+User report: recording abhi bhi save nahi hota. Naya: fixed web address (browser
+me kholo → CCTV turant), us page par saare controls + recording.
+
+- [x] V1 — Plan + PRD likhe (`PROJECT_PLAN.md`, `PRD.md`) before web code.
+- [x] V2 — Mp4Recorder rewrite: direct MediaStore FD (Q+) / public Movies (pre-Q),
+      no temp copy; muxer tracks ready hone tak wait; failure par clear error.
+- [x] V3 — versionCode 4 / versionName 1.3.
+- [x] V4 — Static web viewer in `docs/`: index.html, styles.css, app.js,
+      vendored mqtt.min.js, .nojekyll. Fixed URL GitHub Pages.
+- [ ] V5 — Push + GitHub Actions build green, release `apk-7` verify.
+- [ ] V6 — Device test: MP4 Movies/HomeCamLive me >0 bytes; web page live + controls.
+
+## Decisions (v4)
+- Fixed URL: https://paklatestinformation-cyber.github.io/homecamlive/ (repo docs/).
+- Web page MQTT over WebSocket par same `homecamlive/<room>/#` subscribe karti hai.
+- Web controls: MIC (local audio), CAM MIC, FLIP, SPLIT/DUAL, FULLSCREEN,
+  RECORD/STOP (WebM download), SNAPSHOT, EVENT LOG.
+- Browser recording = canvas.captureStream + PCM audio -> MediaRecorder -> WebM
+  file Downloads folder me (browser direct Gallery me nahi likh sakta).
+- Mp4Recorder ab final MediaStore FD par seedha MP4 likhta hai — temp delete/copy
+  race khatam. Is_PENDING clear + size verify stop par.
+
 ## NOW
-v3 shipped. Device test baaki: recording file Gallery/Movies/HomeCamLive me dikhe ya nahi,
-dual camera support (kuch phones par second camera open fail ho sakta hai).
+Code complete; build/release baaki. Agla step: commit + push, Actions green,
+release apk-7, phir user ko fixed web URL + APK link dena.
