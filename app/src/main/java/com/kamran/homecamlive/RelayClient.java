@@ -9,6 +9,8 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,7 +37,11 @@ public class RelayClient {
     private final Callback cb;
     private final ExecutorService connectExec = Executors.newSingleThreadExecutor();
     private final ExecutorService publishExec = Executors.newSingleThreadExecutor();
+    private final ExecutorService frameExec = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService retryExec = Executors.newSingleThreadScheduledExecutor();
+    private final Object frameLock = new Object();
+    private final HashMap<String, byte[]> pendingFrames = new HashMap<>();
+    private volatile boolean frameWorkerRunning = false;
 
     private volatile MqttClient client;
     private volatile boolean active = false;
@@ -124,10 +130,48 @@ public class RelayClient {
         });
     }
 
+    /** Frame topics use latest-wins: a slow network drops old frames instead of bursting them later. */
+    public void publishFrame(String sub, byte[] payload) {
+        if (payload == null) return;
+        final String fullTopic = topic(sub);
+        final byte[] copy = payload.clone();
+        synchronized (frameLock) {
+            pendingFrames.put(fullTopic, copy);
+            if (!frameWorkerRunning) {
+                frameWorkerRunning = true;
+                try { frameExec.execute(this::drainFrames); }
+                catch (Exception e) { frameWorkerRunning = false; }
+            }
+        }
+    }
+
+    private void drainFrames() {
+        while (true) {
+            String target;
+            byte[] data;
+            synchronized (frameLock) {
+                if (pendingFrames.isEmpty()) {
+                    frameWorkerRunning = false;
+                    return;
+                }
+                Map.Entry<String, byte[]> next = pendingFrames.entrySet().iterator().next();
+                target = next.getKey();
+                data = next.getValue();
+                pendingFrames.remove(target);
+            }
+            MqttClient c = client;
+            if (c == null || !c.isConnected()) continue;
+            try { c.publish(target, data, 0, false); }
+            catch (Exception e) { Log.w(TAG, "frame publish failed: " + e.getMessage()); }
+        }
+    }
+
     public void disconnect() {
         active = false;
+        synchronized (frameLock) { pendingFrames.clear(); }
         retryExec.shutdownNow();
         publishExec.shutdownNow();
+        frameExec.shutdownNow();
         connectExec.shutdownNow();
         final MqttClient c = client;
         client = null;

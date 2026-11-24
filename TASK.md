@@ -101,7 +101,7 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 - Mp4Recorder ab final MediaStore FD par seedha MP4 likhta hai — temp delete/copy
   race khatam. Is_PENDING clear + size verify stop par.
 
-## v5 request (24 Nov 2026) — IN PROGRESS
+## v5 request (24 Nov 2026) — SHIPPED
 - [x] V1 — Web viewer hata diya: `docs/` repo se delete, GitHub Pages disable (204).
 - [x] V2 — Mp4Recorder: temp MP4 phir multi-destination publish —
       `DCIM/Camera` (primary), `Download`, `Movies` fallbacks; SIZE > 0 verify;
@@ -112,14 +112,29 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 - [x] V5 — Push + Actions green (run `45370108525`), release `apk-8`
       (5,732,924 bytes) verified with `unzip -l`.
 - [x] V6 — Web viewer removed: `docs/` deleted, Pages DELETE 204, URL ab 404.
-- [ ] V7 — Device test: MP4 `DCIM/Camera` me dikhe, size > 0, path Toast aaye.
+- [x] V7 — Device test: user ne apk-8 test kiya — RECORD abhi bhi stuck,
+      video jerky/bursty; v6 open defect.
 
-## Decisions (v5)
+## v6 request (24 Nov 2026) — IN PROGRESS
+- [x] V1 — `RelayClient`: latest-wins frame publish (purane frames drop, burst khatam).
+- [x] V2 — `CameraService`: frame rate ~12 fps (dual ~8 fps/pane), 480x360-
+      targeted frame, JPEG cost kam, callback thread non-blocking publish.
+- [x] V3 — `CameraService`: MIC_ON/MIC_OFF remote handle; toggleMic refactor;
+      har start failure par `REC_FAIL` status.
+- [x] V4 — `Mp4Recorder`: `feedVideo`/`feedAudio` non-blocking (buffer na ho to frame drop).
+- [x] V5 — `CameraActivity` / `ViewerActivity`: RECORD button optimistic state + failure reset.
+- [x] V6 — Logo/icon design: `brand/logo-final.svg`, adaptive icon updated (Beacon Shield).
+- [ ] V7 — versionCode 6 / versionName 1.5; push; Actions green; release `apk-9`; verify.
+
+## Decisions
 - Mobile-to-mobile only; web link/web viewer removed from scope.
 - Gallery visibility ke liye primary destination `DCIM/Camera` — yahan har gallery
   scan karti hai. Purana `Movies/HomeCamLive` nested folder kaam nahi kar raha tha.
 - Publish fail par file zinda rakhi jati hai (temp), taake data na jaye.
+- v6 root cause: ~5 fps + unbounded MQTT publish backlog + heavy JPEG/stamp work
+  camera callback thread par + encoder backpressure + silent RECORD start failures.
+  Fix: latest-wins frames, ~12 fps, non-blocking encoder feed, explicit failure
+  status, optimistic UI state.
 
 ## NOW
-v5 shipped: apk-8 live, web viewer hataya gaya. User ko bas APK install karke
-RECORD/STOP test karna hai — file DCIM/Camera me milegi aur exact path Toast dikhega.
+v6 code + logo complete; push karke Actions green ka intezaar hai, phir apk-9 release.

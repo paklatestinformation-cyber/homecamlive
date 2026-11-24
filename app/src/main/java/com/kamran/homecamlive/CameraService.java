@@ -56,16 +56,21 @@ public class CameraService extends Service {
     public static final String EXTRA_REC = "rec";
     public static final String EXTRA_DUAL = "dual";
 
-    private static final long FRAME_INTERVAL_MS = 200L; // ~5 fps
+    private static final long FRAME_INTERVAL_MS = 80L;  // ~12 fps — smooth real-time feel
+    private static final long DUAL_FRAME_INTERVAL_MS = 120L; // ~8 fps per pane in dual mode
     private static final int NOTIF_ID = 771;
     private static final String CHANNEL_ID = "homecamlive-stream";
 
     private static volatile boolean RUNNING = false;
     public static boolean isRunning() { return RUNNING; }
 
+    private long frameIntervalMs() {
+        return dualMode ? DUAL_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS;
+    }
+
     private RelayClient relay;
     private AudioCapture audioCapture;
-    private Mp4Recorder recorder;
+    private volatile Mp4Recorder recorder;
     private PowerManager.WakeLock wakeLock;
 
     private HandlerThread camThread;
@@ -75,7 +80,7 @@ public class CameraService extends Service {
     private SurfaceTexture surfaceTexture;
     private int currentCamId = -1;
     private String camFacing = "BACK";
-    private int previewW = 0, previewH = 0;
+    private volatile int previewW = 0, previewH = 0;
     private int frameRotation = 0;
     private boolean mirrorFrame = false;
 
@@ -86,9 +91,9 @@ public class CameraService extends Service {
     private int secondW = 0, secondH = 0;
     private int secondRotation = 0;
     private boolean mirrorSecond = true;
-    private boolean dualMode = false;
+    private volatile boolean dualMode = false;
 
-    private boolean micEnabled = true;
+    private volatile boolean micEnabled = true;
     private String room = "";
     private long lastPublish = 0;
     private long fpsWindow = 0;
@@ -98,7 +103,7 @@ public class CameraService extends Service {
     private final Camera.PreviewCallback frameCallback = (data, cam) -> {
         if (!RUNNING || previewW == 0) { cam.addCallbackBuffer(data); return; }
         countFps();
-        if (System.currentTimeMillis() - lastPublish >= FRAME_INTERVAL_MS) {
+        if (System.currentTimeMillis() - lastPublish >= frameIntervalMs()) {
             lastPublish = System.currentTimeMillis();
             handleFrame(data, previewW, previewH, frameRotation, mirrorFrame,
                     "BACK".equals(camFacing), true, cam);
@@ -108,7 +113,7 @@ public class CameraService extends Service {
 
     private final Camera.PreviewCallback secondCallback = (data, cam) -> {
         if (!RUNNING || !dualMode || secondW == 0) { cam.addCallbackBuffer(data); return; }
-        if (System.currentTimeMillis() - lastPublish2 >= FRAME_INTERVAL_MS) {
+        if (System.currentTimeMillis() - lastPublish2 >= frameIntervalMs()) {
             lastPublish2 = System.currentTimeMillis();
             handleFrame(data, secondW, secondH, secondRotation, mirrorSecond,
                     "BACK".equals(secondFacing), false, cam);
@@ -134,7 +139,7 @@ public class CameraService extends Service {
         try {
             YuvImage yuv = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
             ByteArrayOutputStream rawOut = new ByteArrayOutputStream();
-            yuv.compressToJpeg(new Rect(0, 0, w, h), 90, rawOut);
+            yuv.compressToJpeg(new Rect(0, 0, w, h), 70, rawOut);
             Bitmap raw = BitmapFactory.decodeByteArray(rawOut.toByteArray(), 0, rawOut.size());
             if (raw == null) return;
 
@@ -142,12 +147,12 @@ public class CameraService extends Service {
             Bitmap stamped = TimeOverlay.stamp(oriented);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            stamped.compress(Bitmap.CompressFormat.JPEG, 45, out);
+            stamped.compress(Bitmap.CompressFormat.JPEG, 40, out);
             byte[] jpeg = out.toByteArray();
 
             String label = isBack ? "BACK" : "FRONT";
             String topic = dualMode ? (isBack ? "frame_back" : "frame_front") : "frame";
-            if (relay != null) relay.publish(topic, jpeg);
+            if (relay != null) relay.publishFrame(topic, jpeg);
 
             String event = dualMode ? (isBack ? BACK_FRAME_EVENT : FRONT_FRAME_EVENT) : FRAME_EVENT;
             LocalBroadcastManager.getInstance(this).sendBroadcast(
@@ -227,6 +232,8 @@ public class CameraService extends Service {
                 if (!topic.endsWith("/control")) return;
                 String cmd = Control.text(payload);
                 if (Control.FLIP.equals(cmd)) flipCamera();
+                else if (Control.MIC_ON.equals(cmd)) setMic(true);
+                else if (Control.MIC_OFF.equals(cmd)) setMic(false);
                 else if (Control.REC_START.equals(cmd)) startRecording();
                 else if (Control.REC_STOP.equals(cmd)) stopRecording();
                 else if (Control.DUAL_ON.equals(cmd)) startDual();
@@ -286,13 +293,17 @@ public class CameraService extends Service {
 
     private Camera.Size pickSize(List<Camera.Size> sizes) {
         if (sizes == null || sizes.isEmpty()) throw new IllegalStateException("No preview sizes");
-        Camera.Size best = sizes.get(0);
-        int bestDiff = Integer.MAX_VALUE;
+        Camera.Size best = null;
+        long bestCost = Long.MAX_VALUE;
+        long targetPixels = 480L * 360L;
         for (Camera.Size s : sizes) {
-            int diff = Math.abs(s.width - 640) + Math.abs(s.height - 480);
-            if (diff < bestDiff) { bestDiff = diff; best = s; }
+            if (s.width > 1280 || s.height > 1280) continue;
+            long pixels = (long) s.width * s.height;
+            long cost = Math.abs(pixels - targetPixels);
+            if (s.width < s.height) cost += 200000L; // prefer landscape
+            if (cost < bestCost) { bestCost = cost; best = s; }
         }
-        return best;
+        return best == null ? sizes.get(0) : best;
     }
 
     private void openCamera(int camId) {
@@ -454,17 +465,21 @@ public class CameraService extends Service {
         publishStatus("FRONT".equals(camFacing) ? Control.CAM_FRONT : Control.CAM_BACK);
     }
 
-    private synchronized void toggleMic() {
-        micEnabled = !micEnabled;
-        publishStatus(micEnabled ? Control.MIC_ON : Control.MIC_OFF);
-        sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0, "");
+    private synchronized void toggleMic() { setMic(!micEnabled); }
+
+    private synchronized void setMic(boolean on) {
+        micEnabled = on;
+        if (on && audioCapture != null) audioCapture.start();
+        publishStatus(on ? Control.MIC_ON : Control.MIC_OFF);
+        sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0,
+                on ? "Mic ON — viewer sun sakta hai" : "Mic OFF");
     }
 
     private synchronized void startRecording() {
         Mp4Recorder current = recorder;
         if (current != null && current.isRecording()) return;
         int w = previewW, h = previewH;
-        if (w <= 0 || h <= 0) return;
+        if (w <= 0 || h <= 0) { failRecord("Camera view abhi ready nahi"); return; }
         if (frameRotation == 90 || frameRotation == 270) { int t = w; w = h; h = t; }
         Mp4Recorder r = new Mp4Recorder();
         try {
@@ -472,18 +487,26 @@ public class CameraService extends Service {
             recorder = r;
             publishStatus(Control.REC_ON);
             sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0, "Recording: " + name);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Log.e(TAG, "record start failed", e);
-            sendStatus("ERROR", 0, "Recording start nahi hui: " + e.getMessage());
+            try { r.stop(); } catch (Throwable ignored) { }
+            failRecord(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
+    }
+
+    private void failRecord(String reason) {
+        recorder = null;
+        publishStatus(Control.REC_FAIL);
+        sendStatus("ERROR", 0, "REC fail: " + reason);
     }
 
     private synchronized void stopRecording() {
         Mp4Recorder r = recorder;
         if (r == null) return;
-        String name = r.stop();
-        String path = r.getSavedPath();
         recorder = null;
+        String path = null;
+        try { path = r.stop(); }
+        catch (Throwable e) { Log.e(TAG, "record stop failed", e); }
         publishStatus(Control.REC_OFF);
         String msg;
         if (path != null && path.startsWith("OK:")) {

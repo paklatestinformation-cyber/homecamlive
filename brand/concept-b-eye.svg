@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
+  <title id="t">Signal Eye</title>
+  <rect width="512" height="512" rx="112" fill="#0B1220"/>
+  <path d="M88 256 C156 158 356 158 424 256 C356 354 156 354 88 256 Z" fill="none" stroke="#F5A623" stroke-width="34" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="74" fill="#F5A623"/>
+  <circle cx="256" cy="256" r="26" fill="#0B1220"/>
+  <circle cx="390" cy="158" r="14" fill="#F5A623"/>
+</svg>

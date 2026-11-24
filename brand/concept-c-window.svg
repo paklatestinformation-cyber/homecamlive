@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
+  <title id="t">Window Watch</title>
+  <rect width="512" height="512" rx="112" fill="#0B1220"/>
+  <rect x="104" y="104" width="304" height="304" rx="44" fill="none" stroke="#F5A623" stroke-width="30"/>
+  <path d="M256 104 V408 M104 256 H408" fill="none" stroke="#F5A623" stroke-width="18" opacity="0.55"/>
+  <circle cx="256" cy="256" r="58" fill="#F5A623"/>
+  <circle cx="256" cy="256" r="20" fill="#0B1220"/>
+</svg>

@@ -205,10 +205,20 @@ public class ViewerActivity extends AppCompatActivity {
         else if (Control.DUAL_ON.equals(cmd)) dualOn = true;
         else if (Control.DUAL_OFF.equals(cmd)) dualOn = false;
         else if (Control.REC_ON.equals(cmd)) {
+            pendingRecord = false;
             ui.post(() -> { btnRecord.setText("STOP REC"); refreshInfo(); });
             return;
+        } else if (Control.REC_FAIL.equals(cmd)) {
+            pendingRecord = false;
+            ui.post(() -> {
+                btnRecord.setText("RECORD");
+                Toast.makeText(this, "Camera recording start nahi hui", Toast.LENGTH_SHORT).show();
+                refreshInfo();
+            });
+            return;
         } else if (Control.REC_OFF.equals(cmd)) {
-            ui.post(() -> { if (!recorder.isRecording() && !pendingRecord) btnRecord.setText("RECORD"); refreshInfo(); });
+            pendingRecord = false;
+            ui.post(() -> { if (!recorder.isRecording()) btnRecord.setText("RECORD"); refreshInfo(); });
             return;
         }
         ui.post(() -> { applyDualUi(); refreshInfo(); });
@@ -248,7 +258,7 @@ public class ViewerActivity extends AppCompatActivity {
             }, "save-rec").start();
         } else {
             pendingRecord = true;
-            btnRecord.setText("STOP REC");
+            btnRecord.setText("STARTING…");
             publish(Control.REC_START);
             Toast.makeText(this, "Recording agle frame se shuru hogi", Toast.LENGTH_SHORT).show();
         }

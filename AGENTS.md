@@ -108,3 +108,14 @@ User report/asks:
 - `versionCode 5`, `versionName '1.4'`.
 - Build: commit `b180286`, run `45370108525` green, release `apk-8`
   (5,732,924 bytes verified with classes.dex / AndroidManifest.xml / resources.arsc).
+
+## v6 request (24 Nov 2026) — IN PROGRESS
+User report: RECORD button stuck, recording start nahi hoti; live video bahut
+jerky/laggy hai, frames attack attack karke chalate hain. Wants:
+- Smooth, real-time looking video (continuous frames, not bursts).
+- RECORD button responsive; recording must start when pressed.
+- MIC fixed and working.
+- Recording must start when needed and MUST save to mobile storage.
+- A good logo for the app.
+Needs root-cause: frame pacing on camera thread, encoder backpressure,
+Mp4Recorder feedVideo blocking, and UI state race on RECORD button.

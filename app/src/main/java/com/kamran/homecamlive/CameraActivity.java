@@ -33,6 +33,7 @@ public class CameraActivity extends AppCompatActivity {
 
     private boolean registered = false;
     private boolean micOn = true, recOn = false, dualOn = false;
+    private volatile String recPending = null;
     private String camFacing = "BACK";
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -68,6 +69,7 @@ public class CameraActivity extends AppCompatActivity {
     private final BroadcastReceiver statusReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (intent == null || !CameraService.STATUS_EVENT.equals(intent.getAction())) return;
+            recPending = null;
             applyState(intent.getStringExtra(CameraService.EXTRA_STATE),
                     intent.getIntExtra(CameraService.EXTRA_FPS, 0),
                     intent.getStringExtra(CameraService.EXTRA_MSG),
@@ -109,8 +111,18 @@ public class CameraActivity extends AppCompatActivity {
         btnFlip.setOnClickListener(v -> serviceAction(CameraService.ACTION_FLIP));
         btnDual.setOnClickListener(v -> serviceAction(dualOn
                 ? CameraService.ACTION_DUAL_STOP : CameraService.ACTION_DUAL_START));
-        btnRecord.setOnClickListener(v -> serviceAction(recOn
-                ? CameraService.ACTION_REC_STOP : CameraService.ACTION_REC_START));
+        btnRecord.setOnClickListener(v -> {
+            if (!CameraService.isRunning()) {
+                Toast.makeText(this, "Pehle START BROADCAST dabao", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (recPending != null) return; // already waiting for service result
+            boolean start = !recOn;
+            recPending = start ? "STARTING…" : "STOPPING…";
+            btnRecord.setText(recPending);
+            serviceAction(start
+                    ? CameraService.ACTION_REC_START : CameraService.ACTION_REC_STOP);
+        });
         findViewById(R.id.btnCamFullscreen).setOnClickListener(v -> {
             Bitmap b = CamBitmap.capture(previewImage);
             if (b == null) b = CamBitmap.capture(camBackImage);
@@ -169,6 +181,7 @@ public class CameraActivity extends AppCompatActivity {
             previewPlaceholder.setVisibility(View.VISIBLE);
             recBadge.setVisibility(View.GONE);
             recOn = false;
+            recPending = null;
             dualOn = false;
             fullscreen.hide();
             applyState("OFFLINE", 0, "Broadcast band ho gaya", micOn, false, false, camFacing);
@@ -223,7 +236,7 @@ public class CameraActivity extends AppCompatActivity {
         if (cam != null) camFacing = cam;
         fpsText.setText(fps + " fps");
         btnMic.setText(micOn ? "MIC ON" : "MIC OFF");
-        btnRecord.setText(recOn ? "STOP REC" : "RECORD");
+        btnRecord.setText(recPending != null ? recPending : (recOn ? "STOP REC" : "RECORD"));
         btnDual.setText(dualOn ? "SINGLE" : "DUAL");
         if (dualOn) {
             dualPreview.setVisibility(View.VISIBLE);

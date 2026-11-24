@@ -167,7 +167,7 @@ public class Mp4Recorder {
     public synchronized void feedVideo(byte[] nv21) {
         if (!recording || videoCodec == null || nv21 == null) return;
         try {
-            int idx = videoCodec.dequeueInputBuffer(40000);
+            int idx = videoCodec.dequeueInputBuffer(0);
             if (idx < 0) return;
             byte[] nv12 = toNv12(nv21);
             ByteBuffer bb = videoCodec.getInputBuffer(idx);
@@ -183,7 +183,7 @@ public class Mp4Recorder {
     public synchronized void feedAudio(byte[] pcm) {
         if (!recording || audioCodec == null || pcm == null) return;
         try {
-            int idx = audioCodec.dequeueInputBuffer(40000);
+            int idx = audioCodec.dequeueInputBuffer(0);
             if (idx < 0) return;
             ByteBuffer bb = audioCodec.getInputBuffer(idx);
             if (bb == null) return;
