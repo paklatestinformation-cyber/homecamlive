@@ -109,8 +109,10 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 - [x] V3 — Exact saved path Toast/status: camera phone (`SAVED:` msg) + viewer
       phone (`SAVED:` control command) dono par dikhta hai.
 - [x] V4 — versionCode 5 / versionName 1.4.
-- [ ] V5 — Push + Actions green + release `apk-8` verify.
-- [ ] V6 — Device test: MP4 `DCIM/Camera` me dikhe, size > 0.
+- [x] V5 — Push + Actions green (run `45370108525`), release `apk-8`
+      (5,732,924 bytes) verified with `unzip -l`.
+- [x] V6 — Web viewer removed: `docs/` deleted, Pages DELETE 204, URL ab 404.
+- [ ] V7 — Device test: MP4 `DCIM/Camera` me dikhe, size > 0, path Toast aaye.
 
 ## Decisions (v5)
 - Mobile-to-mobile only; web link/web viewer removed from scope.
@@ -119,5 +121,5 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 - Publish fail par file zinda rakhi jati hai (temp), taake data na jaye.
 
 ## NOW
-Code complete; build/release baaki. Agla step: commit + push, Actions green,
-release apk-8, phir user ko download link dena.
+v5 shipped: apk-8 live, web viewer hataya gaya. User ko bas APK install karke
+RECORD/STOP test karna hai — file DCIM/Camera me milegi aur exact path Toast dikhega.

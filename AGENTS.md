@@ -98,10 +98,13 @@ User report/asks:
     Recording **still not saving** after `apk-7` direct-MediaStore attempt —
     open defect (v5), needs deeper fix; see below.
 
-## v5 request (24 Nov 2026) — IN PROGRESS
-- Remove web link / web viewer; app is mobile-to-mobile only.
-- Fix recording once and for all: user reports no MP4 on mobile after apk-7.
-- Chosen approach: temp MP4 first (reliable app-private write), then publish to
-  `DCIM/Camera` via MediaStore Video (Gallery always sees it), with fallbacks
-  to Downloads and Movies root; keep temp if all fail; verify SIZE > 0; show
-  exact saved path in status Toast on camera phone and viewer phone.
+## v5 (24 Nov 2026) — SHIPPED, device test pending
+- Web link / web viewer REMOVED: `docs/` deleted + GitHub Pages disabled (204);
+  old URL now returns 404. App is mobile-to-mobile only.
+- Recording fix: temp MP4 first (app-private), then publish via MediaStore Video
+  to `DCIM/Camera` primary (Gallery always scans it), fallbacks `Download` and
+  `Movies`; SIZE > 0 verify; temp kept if every publish fails; exact save path
+  shown in Toast on camera phone and sent to viewer via `SAVED:` status.
+- `versionCode 5`, `versionName '1.4'`.
+- Build: commit `b180286`, run `45370108525` green, release `apk-8`
+  (5,732,924 bytes verified with classes.dex / AndroidManifest.xml / resources.arsc).
