@@ -124,7 +124,8 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 - [x] V4 — `Mp4Recorder`: `feedVideo`/`feedAudio` non-blocking (buffer na ho to frame drop).
 - [x] V5 — `CameraActivity` / `ViewerActivity`: RECORD button optimistic state + failure reset.
 - [x] V6 — Logo/icon design: `brand/logo-final.svg`, adaptive icon updated (Beacon Shield).
-- [ ] V7 — versionCode 6 / versionName 1.5; push; Actions green; release `apk-9`; verify.
+- [x] V7 — versionCode 6 / versionName 1.5; commit `9f24fec`; Actions run
+      `45499098534` green; release `apk-9` (5,734,540 bytes) verified in all 3 dex files.
 
 ## Decisions
 - Mobile-to-mobile only; web link/web viewer removed from scope.
@@ -137,4 +138,5 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
   status, optimistic UI state.
 
 ## NOW
-v6 code + logo complete; push karke Actions green ka intezaar hai, phir apk-9 release.
+v6 SHIPPED as apk-9 (1.5). User ko device par test karna hai: smooth live view,
+RECORD start/stop, MIC, aur DCIM/Camera me MP4 save.

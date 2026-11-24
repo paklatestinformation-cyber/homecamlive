@@ -109,13 +109,28 @@ User report/asks:
 - Build: commit `b180286`, run `45370108525` green, release `apk-8`
   (5,732,924 bytes verified with classes.dex / AndroidManifest.xml / resources.arsc).
 
-## v6 request (24 Nov 2026) — IN PROGRESS
+## v6 (24 Nov 2026) — SHIPPED
 User report: RECORD button stuck, recording start nahi hoti; live video bahut
-jerky/laggy hai, frames attack attack karke chalate hain. Wants:
-- Smooth, real-time looking video (continuous frames, not bursts).
-- RECORD button responsive; recording must start when pressed.
-- MIC fixed and working.
-- Recording must start when needed and MUST save to mobile storage.
-- A good logo for the app.
-Needs root-cause: frame pacing on camera thread, encoder backpressure,
-Mp4Recorder feedVideo blocking, and UI state race on RECORD button.
+jerky/laggy hai, frames attack attack karke chalate hain. Wanted smooth real-time
+video, responsive RECORD, working MIC, reliable phone-storage save, good logo.
+
+Root cause + fix:
+- Bursty video: ~5 fps + unbounded MQTT publish backlog + heavy JPEG/stamp work
+  on camera callback thread. Fixed with `RelayClient.publishFrame()` latest-wins
+  queue, ~12 fps (dual ~8 fps/pane), 480x360-targeted preview, lower JPEG cost.
+- RECORD stuck: silent start failures + encoder backpressure. Fixed with
+  `Mp4Recorder.feedVideo/feedAudio` non-blocking (`dequeueInputBuffer(0)`),
+  `Control.REC_FAIL` published on every failure, optimistic `STARTING…` button
+  state in both Camera and Viewer activities.
+- MIC: remote `MIC_ON`/`MIC_OFF` now handled by `CameraService`; `setMic()` calls
+  `AudioCapture.start()` when enabling.
+- Save path unchanged from v5: temp MP4 -> DCIM/Camera -> Download -> Movies,
+  temp kept if all fail, exact path Toast + `SAVED:` status.
+
+Logo: `brand/logo-final.svg` "Beacon Shield" (navy #0B1220 + amber #F5A623),
+adaptive launcher foreground replaced with the same mark. Concept sheet in
+`brand/concepts.svg` (recommended concept 1).
+
+Build: `versionCode 6`, `versionName '1.5'`, commit `9f24fec`, run `45499098534`
+green, release `apk-9` (5,734,540 bytes verified; app code in classes3.dex).
+Device test pending.
