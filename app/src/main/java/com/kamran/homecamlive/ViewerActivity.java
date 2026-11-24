@@ -194,6 +194,10 @@ public class ViewerActivity extends AppCompatActivity {
     }
 
     private void onStatus(String cmd) {
+        if (cmd != null && cmd.startsWith("SAVED:")) {
+            ui.post(() -> Toast.makeText(this, "Camera saved: " + cmd.substring(6), Toast.LENGTH_LONG).show());
+            return;
+        }
         if (Control.CAM_FRONT.equals(cmd)) camFacing = "FRONT";
         else if (Control.CAM_BACK.equals(cmd)) camFacing = "BACK";
         else if (Control.MIC_ON.equals(cmd)) camMicOn = true;

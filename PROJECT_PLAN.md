@@ -1,5 +1,8 @@
 # PROJECT PLAN — Personal CCTV v4
 
+> SUPERSEDED 24 Nov: user removed the web viewer requirement. App is now
+> mobile-to-mobile only; see `TASK.md` v5 for the active plan.
+
 GOAL: Fix MP4 recording save on device, and ship a fixed GitHub Pages URL that opens a full CCTV viewer in any browser with all controls including recording.
 
 ## Deliverables

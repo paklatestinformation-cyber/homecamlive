@@ -214,6 +214,9 @@ public class CameraActivity extends AppCompatActivity {
 
     private void applyState(String state, int fps, String msg, boolean mic, boolean rec,
                             boolean dual, String cam) {
+        if (msg != null && (msg.startsWith("SAVED:") || msg.startsWith("SAVE FAIL"))) {
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+        }
         micOn = mic;
         recOn = rec;
         dualOn = dual;

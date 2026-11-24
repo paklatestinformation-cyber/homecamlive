@@ -482,10 +482,18 @@ public class CameraService extends Service {
         Mp4Recorder r = recorder;
         if (r == null) return;
         String name = r.stop();
+        String path = r.getSavedPath();
         recorder = null;
         publishStatus(Control.REC_OFF);
-        sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0,
-                name == null ? "Recording saved" : "Saved: " + name);
+        String msg;
+        if (path != null && path.startsWith("OK:")) {
+            msg = "SAVED: " + path.substring(3);
+            publishStatus("SAVED:" + path.substring(3));
+        } else {
+            msg = "SAVE FAIL: " + (path == null ? "unknown" : path);
+            publishStatus("SAVE_FAIL");
+        }
+        sendStatus(RUNNING ? "LIVE" : "OFFLINE", 0, msg);
     }
 
     private int findBackCamera() {

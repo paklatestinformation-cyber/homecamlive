@@ -1,5 +1,8 @@
 # PRD — Personal CCTV Web Viewer
 
+> SUPERSEDED 24 Nov: user removed the web viewer requirement. Kept only as
+> build history; active work is mobile-to-mobile recording fix in `TASK.md` v5.
+
 ## Problem
 Recording starts but no MP4 appears on the device after apk-6. Separately, the user must install the APK to watch CCTV; they want a single fixed browser address that always works and has every control including recording.
 

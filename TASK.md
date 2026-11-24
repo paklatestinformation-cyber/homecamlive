@@ -75,9 +75,10 @@ Download: https://github.com/paklatestinformation-cyber/homecamlive/releases/dow
 Compile fixes: `RUNNING.get()/set()` -> plain boolean, `lastPublish2` forward ref,
 `(byte) 16/128` casts in Mp4Recorder.
 
-## v4 request (24 Nov 2026) — IN PROGRESS
+## v4 request (24 Nov 2026) — SHIPPED, LATER REVERSED
 User report: recording abhi bhi save nahi hota. Naya: fixed web address (browser
 me kholo → CCTV turant), us page par saare controls + recording.
+User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 
 - [x] V1 — Plan + PRD likhe (`PROJECT_PLAN.md`, `PRD.md`) before web code.
 - [x] V2 — Mp4Recorder rewrite: direct MediaStore FD (Q+) / public Movies (pre-Q),
@@ -100,7 +101,23 @@ me kholo → CCTV turant), us page par saare controls + recording.
 - Mp4Recorder ab final MediaStore FD par seedha MP4 likhta hai — temp delete/copy
   race khatam. Is_PENDING clear + size verify stop par.
 
+## v5 request (24 Nov 2026) — IN PROGRESS
+- [x] V1 — Web viewer hata diya: `docs/` repo se delete, GitHub Pages disable (204).
+- [x] V2 — Mp4Recorder: temp MP4 phir multi-destination publish —
+      `DCIM/Camera` (primary), `Download`, `Movies` fallbacks; SIZE > 0 verify;
+      temp tabhi delete jab publish prove ho; warna temp keep.
+- [x] V3 — Exact saved path Toast/status: camera phone (`SAVED:` msg) + viewer
+      phone (`SAVED:` control command) dono par dikhta hai.
+- [x] V4 — versionCode 5 / versionName 1.4.
+- [ ] V5 — Push + Actions green + release `apk-8` verify.
+- [ ] V6 — Device test: MP4 `DCIM/Camera` me dikhe, size > 0.
+
+## Decisions (v5)
+- Mobile-to-mobile only; web link/web viewer removed from scope.
+- Gallery visibility ke liye primary destination `DCIM/Camera` — yahan har gallery
+  scan karti hai. Purana `Movies/HomeCamLive` nested folder kaam nahi kar raha tha.
+- Publish fail par file zinda rakhi jati hai (temp), taake data na jaye.
+
 ## NOW
-v4 shipped: apk-7 + fixed web URL live. User ko bas APK install karke same Room ID
-se test karna hai: camera phone par RECORD/STOP → MP4 Movies/HomeCamLive me check;
-browser par fixed URL kholkar controls test karne hain.
+Code complete; build/release baaki. Agla step: commit + push, Actions green,
+release apk-8, phir user ko download link dena.

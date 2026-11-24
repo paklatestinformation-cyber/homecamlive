@@ -12,41 +12,45 @@ import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
-import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-/** MP4 (H.264 + AAC) written straight into MediaStore / public Movies — no temp copy. */
+/** MP4 recorder: reliable temp write, then publish to Gallery with fallbacks. */
 public class Mp4Recorder {
     private static final String TAG = "Mp4Recorder";
 
     private MediaCodec videoCodec, audioCodec;
     private MediaMuxer muxer;
-    private FileOutputStream directOut;
-    private ParcelFileDescriptor pfd;
-    private Uri storeUri;
-    private File directFile;
+    private FileOutputStream tempOut;
+    private File tempFile;
     private Context appCtx;
     private int videoTrack = -1, audioTrack = -1;
     private boolean muxerStarted = false, recording = false;
     private long startNs;
     private String outputName;
+    private String savedPath = "";
 
     private final MediaCodec.BufferInfo vInfo = new MediaCodec.BufferInfo();
     private final MediaCodec.BufferInfo aInfo = new MediaCodec.BufferInfo();
 
     public synchronized boolean isRecording() { return recording; }
 
-    /** Returns the saved file name; file lands in Movies/HomeCamLive. */
+    /** Returns the final save description, e.g. OK:DCIM/Camera/file.mp4. */
+    public synchronized String getSavedPath() { return savedPath; }
+
+    /** Returns the output file name; MP4 is published on stop(). */
     public synchronized String start(Context ctx, int w, int h) throws Exception {
         if (recording) return null;
         if (w <= 0 || h <= 0) throw new IOException("Invalid video size " + w + "x" + h);
@@ -56,10 +60,19 @@ public class Mp4Recorder {
         videoTrack = -1;
         audioTrack = -1;
         muxerStarted = false;
+        savedPath = "";
         outputName = "PersonalCCTV_" +
                 new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
 
         try {
+            File dir = appCtx.getExternalFilesDir(Environment.DIRECTORY_MOVIES);
+            if (dir == null) dir = appCtx.getFilesDir();
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            tempFile = new File(dir, "tmp_" + outputName);
+            tempOut = new FileOutputStream(tempFile);
+            muxer = new MediaMuxer(tempOut.getFD(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+
             MediaFormat vf = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
             vf.setInteger(MediaFormat.KEY_COLOR_FORMAT,
                     MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar);
@@ -76,32 +89,6 @@ public class Mp4Recorder {
             audioCodec.configure(af, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             audioCodec.start();
 
-            // Open the FINAL destination first. No temp file, no copy at stop().
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ContentValues cv = new ContentValues();
-                cv.put(MediaStore.Video.Media.DISPLAY_NAME, outputName);
-                cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
-                cv.put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/HomeCamLive");
-                cv.put(MediaStore.Video.Media.IS_PENDING, 1);
-                storeUri = appCtx.getContentResolver().insert(
-                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cv);
-                if (storeUri == null) throw new IOException("MediaStore insert failed");
-                pfd = appCtx.getContentResolver().openFileDescriptor(storeUri, "w");
-                if (pfd == null) throw new IOException("MediaStore openFileDescriptor failed");
-                muxer = new MediaMuxer(pfd.getFileDescriptor(),
-                        MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            } else {
-                File pub = new File(Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_MOVIES), "HomeCamLive");
-                //noinspection ResultOfMethodCallIgnored
-                pub.mkdirs();
-                directFile = new File(pub, outputName);
-                directOut = new FileOutputStream(directFile);
-                muxer = new MediaMuxer(directOut.getFD(),
-                        MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            }
-
-            // Prime both codecs so both tracks are added even if one input is late.
             primeBlankFrame(w, h);
             primeSilence();
 
@@ -113,8 +100,7 @@ public class Mp4Recorder {
             if (!muxerStarted) throw new IOException("Encoder tracks not ready");
 
             recording = true;
-            Log.i(TAG, "start " + outputName + " " + w + "x" + h +
-                    (storeUri != null ? " uri=" + storeUri : " file=" + directFile));
+            Log.i(TAG, "start " + outputName + " " + w + "x" + h + " temp=" + tempFile);
             return outputName;
         } catch (Exception e) {
             Log.e(TAG, "start failed", e);
@@ -127,23 +113,16 @@ public class Mp4Recorder {
         try { if (videoCodec != null) { videoCodec.stop(); videoCodec.release(); } } catch (Exception ignored) { }
         try { if (audioCodec != null) { audioCodec.stop(); audioCodec.release(); } } catch (Exception ignored) { }
         try { if (muxer != null) muxer.release(); } catch (Exception ignored) { }
-        try { if (pfd != null) pfd.close(); } catch (Exception ignored) { }
-        try { if (directOut != null) directOut.close(); } catch (Exception ignored) { }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && storeUri != null && appCtx != null) {
-            try {
-                ContentValues done = new ContentValues();
-                done.put(MediaStore.Video.Media.IS_PENDING, 0);
-                appCtx.getContentResolver().update(storeUri, done, null, null);
-                appCtx.getContentResolver().delete(storeUri, null, null);
-            } catch (Exception ignored) { }
+        try { if (tempOut != null) tempOut.close(); } catch (Exception ignored) { }
+        if (tempFile != null && tempFile.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            tempFile.delete();
         }
         videoCodec = null;
         audioCodec = null;
         muxer = null;
-        pfd = null;
-        directOut = null;
-        storeUri = null;
-        directFile = null;
+        tempOut = null;
+        tempFile = null;
         muxerStarted = false;
         videoTrack = -1;
         audioTrack = -1;
@@ -216,10 +195,6 @@ public class Mp4Recorder {
         } catch (Exception e) { Log.w(TAG, "feedAudio", e); }
     }
 
-    private void drain(MediaCodec codec, MediaCodec.BufferInfo info, boolean video) {
-        drain(codec, info, video, 0);
-    }
-
     private void drain(MediaCodec codec, MediaCodec.BufferInfo info, boolean video, long timeoutUs) {
         while (true) {
             int idx = codec.dequeueOutputBuffer(info, timeoutUs);
@@ -232,7 +207,6 @@ public class Mp4Recorder {
                     if (videoTrack >= 0 && audioTrack >= 0 && !muxerStarted) {
                         muxer.start();
                         muxerStarted = true;
-                        Log.i(TAG, "muxer started, tracks v=" + videoTrack + " a=" + audioTrack);
                     }
                 } catch (Exception e) { Log.w(TAG, "addTrack/start", e); }
                 timeoutUs = 0;
@@ -307,38 +281,124 @@ public class Mp4Recorder {
             try { if (videoCodec != null) { videoCodec.stop(); videoCodec.release(); } } catch (Exception ignored) { }
             try { if (audioCodec != null) { audioCodec.stop(); audioCodec.release(); } } catch (Exception ignored) { }
             try { if (muxer != null) muxer.release(); } catch (Exception ignored) { }
-            try { if (pfd != null) pfd.close(); } catch (Exception ignored) { }
-            try { if (directOut != null) directOut.close(); } catch (Exception ignored) { }
+            try { if (tempOut != null) tempOut.close(); } catch (Exception ignored) { }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && storeUri != null && appCtx != null) {
-            try {
-                ContentValues done = new ContentValues();
-                done.put(MediaStore.Video.Media.IS_PENDING, 0);
-                appCtx.getContentResolver().update(storeUri, done, null, null);
-                long size = querySize(storeUri);
-                Log.i(TAG, "saved " + name + " uri=" + storeUri + " bytes=" + size);
-                if (size <= 0) Log.e(TAG, "saved file is EMPTY — check encoder input");
-            } catch (Exception e) {
-                Log.e(TAG, "finalize MediaStore failed", e);
+        File src = tempFile;
+        if (src != null && src.exists() && src.length() > 1024) {
+            savedPath = publish(src, name);
+            if (savedPath.startsWith("OK:")) {
+                //noinspection ResultOfMethodCallIgnored
+                src.delete();
             }
-        } else if (directFile != null) {
-            MediaScannerConnection.scanFile(appCtx, new String[]{directFile.getAbsolutePath()},
-                    new String[]{"video/mp4"}, null);
-            Log.i(TAG, "saved " + name + " file=" + directFile + " bytes=" + directFile.length());
+            Log.i(TAG, "stop " + name + " -> " + savedPath + " tempBytes=" + src.length());
+        } else {
+            savedPath = "FAIL:empty or missing temp MP4";
+            Log.e(TAG, savedPath);
+            if (src != null) {
+                //noinspection ResultOfMethodCallIgnored
+                src.delete();
+            }
         }
 
         videoCodec = null;
         audioCodec = null;
         muxer = null;
-        pfd = null;
-        directOut = null;
-        storeUri = null;
-        directFile = null;
+        tempOut = null;
+        tempFile = null;
         muxerStarted = false;
         videoTrack = -1;
         audioTrack = -1;
         return name;
+    }
+
+    /** Try several public locations; keep the temp file if none succeed. */
+    private String publish(File src, String name) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            String[] relPaths = {
+                    Environment.DIRECTORY_DCIM + "/Camera",
+                    Environment.DIRECTORY_DOWNLOADS,
+                    Environment.DIRECTORY_MOVIES
+            };
+            for (String rel : relPaths) {
+                Uri uri = null;
+                boolean pending = false;
+                try {
+                    ContentValues cv = new ContentValues();
+                    cv.put(MediaStore.Video.Media.DISPLAY_NAME, name);
+                    cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+                    cv.put(MediaStore.Video.Media.RELATIVE_PATH, rel);
+                    cv.put(MediaStore.Video.Media.IS_PENDING, 1);
+                    pending = true;
+                    uri = appCtx.getContentResolver().insert(
+                            MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cv);
+                    if (uri == null) throw new IOException("insert failed");
+                    OutputStream os = appCtx.getContentResolver().openOutputStream(uri, "w");
+                    if (os == null) throw new IOException("output stream null");
+                    copy(src, os);
+                    os.flush();
+                    os.close();
+                    ContentValues done = new ContentValues();
+                    done.put(MediaStore.Video.Media.IS_PENDING, 0);
+                    appCtx.getContentResolver().update(uri, done, null, null);
+                    pending = false;
+                    long size = querySize(uri);
+                    if (size <= 0) throw new IOException("published size 0");
+                    Log.i(TAG, "published " + rel + " bytes=" + size + " uri=" + uri);
+                    return "OK:" + rel + "/" + name;
+                } catch (Exception e) {
+                    Log.w(TAG, "publish " + rel + " failed", e);
+                    if (pending && uri != null) {
+                        try {
+                            ContentValues done = new ContentValues();
+                            done.put(MediaStore.Video.Media.IS_PENDING, 0);
+                            appCtx.getContentResolver().update(uri, done, null, null);
+                        } catch (Exception ignored) { }
+                    }
+                    if (uri != null) {
+                        try { appCtx.getContentResolver().delete(uri, null, null); } catch (Exception ignored) { }
+                    }
+                }
+            }
+            return "KEEP:" + src.getAbsolutePath();
+        }
+
+        String[] dirs = {
+                Environment.DIRECTORY_DCIM + "/Camera",
+                Environment.DIRECTORY_DOWNLOADS,
+                Environment.DIRECTORY_MOVIES + "/HomeCamLive"
+        };
+        for (String rel : dirs) {
+            try {
+                String rootName = rel.contains("/") ? rel.substring(0, rel.indexOf('/')) : rel;
+                String sub = rel.contains("/") ? rel.substring(rel.indexOf('/') + 1) : "";
+                File root = Environment.getExternalStoragePublicDirectory(rootName);
+                File dir = sub.isEmpty() ? root : new File(root, sub);
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                File dst = new File(dir, name);
+                copyFile(src, dst);
+                MediaScannerConnection.scanFile(appCtx, new String[]{dst.getAbsolutePath()},
+                        new String[]{"video/mp4"}, null);
+                return "OK:" + rel + "/" + name;
+            } catch (Exception e) {
+                Log.w(TAG, "direct publish " + rel + " failed", e);
+            }
+        }
+        return "KEEP:" + src.getAbsolutePath();
+    }
+
+    private static void copy(File src, OutputStream dst) throws IOException {
+        InputStream in = new FileInputStream(src);
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) dst.write(buf, 0, n);
+        in.close();
+    }
+
+    private static void copyFile(File src, File dst) throws IOException {
+        OutputStream os = new FileOutputStream(dst);
+        try { copy(src, os); } finally { os.close(); }
     }
 
     private long querySize(Uri uri) {

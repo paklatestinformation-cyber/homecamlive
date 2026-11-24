@@ -93,3 +93,15 @@ User report/asks:
     URL, not a device IP. `127.0.0.1` local preview is phone-only; never give it
     as the PC address. Camera phone must stay online with broadcast ON; PC only
     needs a browser + internet + the same Room ID.
+  - 24 Nov LATER REVERSAL: user checked the web link and says **remove it** —
+    only mobile-to-mobile view is required. Do not ship/present the web viewer.
+    Recording **still not saving** after `apk-7` direct-MediaStore attempt —
+    open defect (v5), needs deeper fix; see below.
+
+## v5 request (24 Nov 2026) — IN PROGRESS
+- Remove web link / web viewer; app is mobile-to-mobile only.
+- Fix recording once and for all: user reports no MP4 on mobile after apk-7.
+- Chosen approach: temp MP4 first (reliable app-private write), then publish to
+  `DCIM/Camera` via MediaStore Video (Gallery always sees it), with fallbacks
+  to Downloads and Movies root; keep temp if all fail; verify SIZE > 0; show
+  exact saved path in status Toast on camera phone and viewer phone.
