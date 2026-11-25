@@ -42,6 +42,7 @@ public class Mp4Recorder {
     private volatile boolean muxerStarted = false;
     private volatile boolean recording = false;
     private long startNs;
+    private int fedFrames = 0;
     private String outputName;
     private String savedPath = "";
 
@@ -64,6 +65,7 @@ public class Mp4Recorder {
         audioTrack = -1;
         muxerStarted = false;
         savedPath = "";
+        fedFrames = 0;
         outputName = "PersonalCCTV_" +
                 new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
 
@@ -97,7 +99,12 @@ public class Mp4Recorder {
                 audioCodec = null;
             }
 
-            primeBlankFrame(w, h);
+            for (int i = 0; i < 5; i++) {
+                primeBlankFrame(w, h);
+                drain(videoCodec, vInfo, true, 40000);
+                if (audioCodec != null) drain(audioCodec, aInfo, false, 40000);
+                if (muxerStarted) break;
+            }
             if (audioCodec != null) primeSilence();
 
             // Best-effort: try to get the encoder output format now. We do NOT fail
@@ -215,7 +222,7 @@ public class Mp4Recorder {
                     else {
                     bb.clear();
                     bb.put(nv12);
-                    videoCodec.queueInputBuffer(idx, 0, nv12.length, 0, 0);
+                    videoCodec.queueInputBuffer(idx, 0, nv12.length, 0, MediaCodec.BUFFER_FLAG_KEY_FRAME);
                     drain(videoCodec, vInfo, true, 100000);
                     }
                 }
@@ -252,6 +259,7 @@ public class Mp4Recorder {
             bb.put(nv12);
             long pts = (System.nanoTime() - startNs) / 1000L;
             videoCodec.queueInputBuffer(idx, 0, nv12.length, pts, 0);
+            fedFrames++;
             drain(videoCodec, vInfo, true, 0);
         } catch (Exception e) { Log.w(TAG, "feedVideo", e); }
     }
@@ -371,7 +379,7 @@ public class Mp4Recorder {
             }
             Log.i(TAG, "stop " + name + " -> " + savedPath + " tempBytes=" + tempBytes);
         } else {
-            savedPath = "FAIL:empty or missing temp MP4";
+            savedPath = "FAIL:empty temp (fed=" + fedFrames + " muxer=" + muxerStarted + ")";
             Log.e(TAG, savedPath);
             if (src != null) {
                 //noinspection ResultOfMethodCallIgnored
