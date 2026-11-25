@@ -30,7 +30,10 @@ public class AudioPlayer {
     public void feed(byte[] pcm) {
         AudioTrack t = track;
         if (!running || t == null || pcm == null) return;
-        try { t.write(pcm, 0, pcm.length); } catch (Throwable ignored) { }
+        try {
+            // Never block the MQTT callback: a full audio buffer drops this chunk.
+            t.write(pcm, 0, pcm.length, AudioTrack.WRITE_NON_BLOCKING);
+        } catch (Throwable ignored) { }
     }
 
     public synchronized void stop() {

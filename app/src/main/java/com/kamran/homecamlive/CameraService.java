@@ -29,6 +29,10 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Foreground CCTV broadcaster: audio, flip, dual camera, recording, time overlay. */
 public class CameraService extends Service {
@@ -68,20 +72,25 @@ public class CameraService extends Service {
         return dualMode ? DUAL_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS;
     }
 
-    private RelayClient relay;
-    private AudioCapture audioCapture;
+    private volatile RelayClient relay;
+    private volatile AudioCapture audioCapture;
     private volatile Mp4Recorder recorder;
     private PowerManager.WakeLock wakeLock;
 
     private HandlerThread camThread;
     private Handler camHandler;
+    private HandlerThread recThread;
+    private Handler recHandler;
+    private final ExecutorService recFeedExec = Executors.newSingleThreadExecutor();
+    private final AtomicReference<Bitmap> pendingRecFrame = new AtomicReference<>();
+    private final AtomicBoolean recFeedWorker = new AtomicBoolean(false);
 
     private Camera camera;
     private SurfaceTexture surfaceTexture;
     private int currentCamId = -1;
     private String camFacing = "BACK";
     private volatile int previewW = 0, previewH = 0;
-    private int frameRotation = 0;
+    private volatile int frameRotation = 0;
     private boolean mirrorFrame = false;
 
     private Camera secondCamera;
@@ -158,14 +167,53 @@ public class CameraService extends Service {
             LocalBroadcastManager.getInstance(this).sendBroadcast(
                     new Intent(event).putExtra(EXTRA_FRAME, jpeg).putExtra(EXTRA_CAM, label));
 
+            boolean handedOff = false;
             Mp4Recorder r = recorder;
             if (feedRecorder && r != null && r.isRecording()) {
-                r.feedVideo(Mp4Recorder.bitmapToNv21(stamped));
+                enqueueRecFrame(stamped);
+                handedOff = true;
             }
-            if (oriented != raw) oriented.recycle();
-            if (stamped != oriented) stamped.recycle();
+            if (oriented != raw && !(handedOff && stamped == oriented)) oriented.recycle();
+            if (stamped != oriented && !handedOff) stamped.recycle();
         } catch (Throwable e) {
             Log.w(TAG, "frame encode failed", e);
+        }
+    }
+
+    /** Recording conversion runs off the camera thread; stale frames are dropped. */
+    private void enqueueRecFrame(Bitmap bmp) {
+        Bitmap old = pendingRecFrame.getAndSet(bmp);
+        if (old != null && old != bmp) old.recycle();
+        if (recFeedWorker.compareAndSet(false, true)) {
+            try {
+                recFeedExec.execute(this::drainRecFrames);
+            } catch (Exception e) {
+                recFeedWorker.set(false);
+                Bitmap dropped = pendingRecFrame.getAndSet(null);
+                if (dropped != null) dropped.recycle();
+            }
+        }
+    }
+
+    private void drainRecFrames() {
+        while (true) {
+            Bitmap bmp = pendingRecFrame.getAndSet(null);
+            if (bmp == null) {
+                recFeedWorker.set(false);
+                if (pendingRecFrame.get() != null
+                        && recFeedWorker.compareAndSet(false, true)) continue;
+                return;
+            }
+            try {
+                Mp4Recorder r = recorder;
+                if (r != null && r.isRecording()) {
+                    r.feedVideo(Mp4Recorder.bitmapToNv21(bmp));
+                }
+            } catch (Throwable e) {
+                Log.w(TAG, "record frame failed", e);
+            } finally {
+                bmp.recycle();
+            }
         }
     }
 
@@ -186,6 +234,9 @@ public class CameraService extends Service {
         camThread = new HandlerThread("homecam-capture");
         camThread.start();
         camHandler = new Handler(camThread.getLooper());
+        recThread = new HandlerThread("homecam-recorder");
+        recThread.start();
+        recHandler = new Handler(recThread.getLooper());
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -198,9 +249,9 @@ public class CameraService extends Service {
         } else if (ACTION_FLIP.equals(action)) {
             flipCamera();
         } else if (ACTION_REC_START.equals(action)) {
-            startRecording();
+            recHandler.post(this::startRecording);
         } else if (ACTION_REC_STOP.equals(action)) {
-            stopRecording();
+            recHandler.post(this::stopRecording);
         } else if (ACTION_DUAL_START.equals(action)) {
             startDual();
         } else if (ACTION_DUAL_STOP.equals(action)) {
@@ -234,8 +285,8 @@ public class CameraService extends Service {
                 if (Control.FLIP.equals(cmd)) flipCamera();
                 else if (Control.MIC_ON.equals(cmd)) setMic(true);
                 else if (Control.MIC_OFF.equals(cmd)) setMic(false);
-                else if (Control.REC_START.equals(cmd)) startRecording();
-                else if (Control.REC_STOP.equals(cmd)) stopRecording();
+                else if (Control.REC_START.equals(cmd)) recHandler.post(this::startRecording);
+                else if (Control.REC_STOP.equals(cmd)) recHandler.post(this::stopRecording);
                 else if (Control.DUAL_ON.equals(cmd)) startDual();
                 else if (Control.DUAL_OFF.equals(cmd)) stopDual();
             }
@@ -295,12 +346,13 @@ public class CameraService extends Service {
         if (sizes == null || sizes.isEmpty()) throw new IllegalStateException("No preview sizes");
         Camera.Size best = null;
         long bestCost = Long.MAX_VALUE;
-        long targetPixels = 480L * 360L;
+        long targetPixels = 480L * 320L;
         for (Camera.Size s : sizes) {
             if (s.width > 1280 || s.height > 1280) continue;
             long pixels = (long) s.width * s.height;
             long cost = Math.abs(pixels - targetPixels);
-            if (s.width < s.height) cost += 200000L; // prefer landscape
+            if (s.width % 16 != 0 || s.height % 16 != 0) cost += 1000000L; // AVC encoders need alignment
+            if (s.width < s.height) cost += 500000L; // prefer landscape
             if (cost < bestCost) { bestCost = cost; best = s; }
         }
         return best == null ? sizes.get(0) : best;
@@ -496,7 +548,7 @@ public class CameraService extends Service {
 
     private void failRecord(String reason) {
         recorder = null;
-        publishStatus(Control.REC_FAIL);
+        publishStatus(Control.REC_FAIL + ":" + reason);
         sendStatus("ERROR", 0, "REC fail: " + reason);
     }
 
@@ -505,8 +557,12 @@ public class CameraService extends Service {
         if (r == null) return;
         recorder = null;
         String path = null;
-        try { path = r.stop(); }
-        catch (Throwable e) { Log.e(TAG, "record stop failed", e); }
+        try {
+            r.stop();
+            path = r.getSavedPath();
+        } catch (Throwable e) {
+            Log.e(TAG, "record stop failed", e);
+        }
         publishStatus(Control.REC_OFF);
         String msg;
         if (path != null && path.startsWith("OK:")) {
@@ -587,6 +643,10 @@ public class CameraService extends Service {
     @Override public void onDestroy() {
         stopBroadcasting();
         if (camThread != null) camThread.quit();
+        if (recThread != null) recThread.quitSafely();
+        recFeedExec.shutdownNow();
+        Bitmap pending = pendingRecFrame.getAndSet(null);
+        if (pending != null) pending.recycle();
         super.onDestroy();
     }
 }

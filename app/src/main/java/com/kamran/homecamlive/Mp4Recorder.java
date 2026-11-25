@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.media.MediaScannerConnection;
@@ -37,7 +38,9 @@ public class Mp4Recorder {
     private File tempFile;
     private Context appCtx;
     private int videoTrack = -1, audioTrack = -1;
-    private boolean muxerStarted = false, recording = false;
+    private int videoColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar;
+    private boolean muxerStarted = false;
+    private volatile boolean recording = false;
     private long startNs;
     private String outputName;
     private String savedPath = "";
@@ -45,7 +48,7 @@ public class Mp4Recorder {
     private final MediaCodec.BufferInfo vInfo = new MediaCodec.BufferInfo();
     private final MediaCodec.BufferInfo aInfo = new MediaCodec.BufferInfo();
 
-    public synchronized boolean isRecording() { return recording; }
+    public boolean isRecording() { return recording; }
 
     /** Returns the final save description, e.g. OK:DCIM/Camera/file.mp4. */
     public synchronized String getSavedPath() { return savedPath; }
@@ -74,30 +77,45 @@ public class Mp4Recorder {
             muxer = new MediaMuxer(tempOut.getFD(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
 
             MediaFormat vf = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
-            vf.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar);
             vf.setInteger(MediaFormat.KEY_BIT_RATE, 1500000);
             vf.setInteger(MediaFormat.KEY_FRAME_RATE, 15);
             vf.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2);
-            videoCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-            videoCodec.configure(vf, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            videoCodec = createVideoEncoder(vf);
             videoCodec.start();
 
-            MediaFormat af = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 16000, 1);
-            af.setInteger(MediaFormat.KEY_BIT_RATE, 32000);
-            audioCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC);
-            audioCodec.configure(af, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-            audioCodec.start();
+            try {
+                MediaFormat af = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 16000, 1);
+                af.setInteger(MediaFormat.KEY_BIT_RATE, 32000);
+                audioCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC);
+                audioCodec.configure(af, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+                audioCodec.start();
+            } catch (Throwable e) {
+                Log.w(TAG, "audio encoder unavailable; recording video-only", e);
+                if (audioCodec != null) {
+                    try { audioCodec.release(); } catch (Exception ignored) { }
+                }
+                audioCodec = null;
+            }
 
             primeBlankFrame(w, h);
-            primeSilence();
+            if (audioCodec != null) primeSilence();
 
             long deadline = System.currentTimeMillis() + 1500;
             while (!muxerStarted && System.currentTimeMillis() < deadline) {
                 drain(videoCodec, vInfo, true, 60000);
-                drain(audioCodec, aInfo, false, 60000);
+                if (audioCodec != null) drain(audioCodec, aInfo, false, 60000);
             }
-            if (!muxerStarted) throw new IOException("Encoder tracks not ready");
+            if (!muxerStarted && videoTrack >= 0) {
+                // Some devices never report an AAC output format. Keep video instead of failing.
+                Log.w(TAG, "audio track not ready; starting video-only MP4");
+                try { if (audioCodec != null) { audioCodec.stop(); audioCodec.release(); } }
+                catch (Exception ignored) { }
+                audioCodec = null;
+                audioTrack = -1;
+                muxer.start();
+                muxerStarted = true;
+            }
+            if (!muxerStarted) throw new IOException("Video encoder track not ready");
 
             recording = true;
             Log.i(TAG, "start " + outputName + " " + w + "x" + h + " temp=" + tempFile);
@@ -107,6 +125,53 @@ public class Mp4Recorder {
             cleanupAfterFailure();
             throw e;
         }
+    }
+
+    /** Pick an AVC encoder that accepts a byte-buffer YUV format we can feed. */
+    private MediaCodec createVideoEncoder(MediaFormat format) throws IOException {
+        Exception last = null;
+        int[] candidates = {
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
+        };
+        MediaCodecList list = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        for (MediaCodecInfo info : list.getCodecInfos()) {
+            if (!info.isEncoder()) continue;
+            boolean isAvc = false;
+            for (String type : info.getSupportedTypes()) {
+                if (MediaFormat.MIMETYPE_VIDEO_AVC.equalsIgnoreCase(type)) { isAvc = true; break; }
+            }
+            if (!isAvc) continue;
+
+            MediaCodecInfo.CodecCapabilities caps;
+            try { caps = info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC); }
+            catch (Exception e) { continue; }
+
+            for (int color : candidates) {
+                if (!supportsColor(caps, color)) continue;
+                MediaCodec codec = null;
+                try {
+                    codec = MediaCodec.createByCodecName(info.getName());
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT, color);
+                    codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+                    videoColorFormat = color;
+                    Log.i(TAG, "encoder=" + info.getName() + " color=" + color);
+                    return codec;
+                } catch (Throwable e) {
+                    last = e instanceof Exception ? (Exception) e : new Exception(e);
+                    if (codec != null) {
+                        try { codec.release(); } catch (Exception ignored) { }
+                    }
+                }
+            }
+        }
+        throw new IOException("No usable AVC encoder", last);
+    }
+
+    private static boolean supportsColor(MediaCodecInfo.CodecCapabilities caps, int color) {
+        if (caps.colorFormats == null) return false;
+        for (int c : caps.colorFormats) if (c == color) return true;
+        return false;
     }
 
     private void cleanupAfterFailure() {
@@ -138,7 +203,7 @@ public class Mp4Recorder {
             if (idx >= 0) {
                 ByteBuffer bb = videoCodec.getInputBuffer(idx);
                 if (bb != null) {
-                    byte[] nv12 = toNv12(yuv);
+                    byte[] nv12 = toEncoderInput(yuv);
                     bb.clear();
                     bb.put(nv12);
                     videoCodec.queueInputBuffer(idx, 0, nv12.length, 0, 0);
@@ -169,7 +234,7 @@ public class Mp4Recorder {
         try {
             int idx = videoCodec.dequeueInputBuffer(0);
             if (idx < 0) return;
-            byte[] nv12 = toNv12(nv21);
+            byte[] nv12 = toEncoderInput(nv21);
             ByteBuffer bb = videoCodec.getInputBuffer(idx);
             if (bb == null) return;
             bb.clear();
@@ -204,7 +269,7 @@ public class Mp4Recorder {
                 try {
                     if (video) videoTrack = muxer.addTrack(fmt);
                     else audioTrack = muxer.addTrack(fmt);
-                    if (videoTrack >= 0 && audioTrack >= 0 && !muxerStarted) {
+                    if (videoTrack >= 0 && (audioCodec == null || audioTrack >= 0) && !muxerStarted) {
                         muxer.start();
                         muxerStarted = true;
                     }
@@ -250,7 +315,7 @@ public class Mp4Recorder {
                     MediaFormat fmt = codec.getOutputFormat();
                     if (video) videoTrack = muxer.addTrack(fmt);
                     else audioTrack = muxer.addTrack(fmt);
-                    if (videoTrack >= 0 && audioTrack >= 0 && !muxerStarted) {
+                    if (videoTrack >= 0 && (audioCodec == null || audioTrack >= 0) && !muxerStarted) {
                         muxer.start();
                         muxerStarted = true;
                     }
@@ -286,12 +351,13 @@ public class Mp4Recorder {
 
         File src = tempFile;
         if (src != null && src.exists() && src.length() > 1024) {
+            long tempBytes = src.length();
             savedPath = publish(src, name);
             if (savedPath.startsWith("OK:")) {
                 //noinspection ResultOfMethodCallIgnored
                 src.delete();
             }
-            Log.i(TAG, "stop " + name + " -> " + savedPath + " tempBytes=" + src.length());
+            Log.i(TAG, "stop " + name + " -> " + savedPath + " tempBytes=" + tempBytes);
         } else {
             savedPath = "FAIL:empty or missing temp MP4";
             Log.e(TAG, savedPath);
@@ -413,6 +479,26 @@ public class Mp4Recorder {
         } catch (Exception ignored) { }
         finally { if (c != null) { try { c.close(); } catch (Exception ignored) { } } }
         return 0;
+    }
+
+    private byte[] toEncoderInput(byte[] nv21) {
+        if (videoColorFormat == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar) {
+            return toI420(nv21);
+        }
+        return toNv12(nv21);
+    }
+
+    /** NV21 -> I420 (Y plane, then U plane, then V plane). */
+    private static byte[] toI420(byte[] nv21) {
+        byte[] out = new byte[nv21.length];
+        int frameSize = nv21.length * 2 / 3;
+        System.arraycopy(nv21, 0, out, 0, frameSize);
+        int quarter = frameSize / 4;
+        for (int i = 0; i < quarter; i++) {
+            out[frameSize + i] = nv21[frameSize + i * 2 + 1];       // U
+            out[frameSize + quarter + i] = nv21[frameSize + i * 2]; // V
+        }
+        return out;
     }
 
     /** NV21 -> NV12 (swap U/V bytes); input array is not modified. */

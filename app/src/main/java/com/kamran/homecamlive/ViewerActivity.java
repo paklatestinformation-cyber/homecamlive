@@ -16,6 +16,11 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 public class ViewerActivity extends AppCompatActivity {
     private EditText roomInput;
     private ImageView feedImage, feedBackImage, feedFrontImage;
@@ -25,18 +30,22 @@ public class ViewerActivity extends AppCompatActivity {
 
     private RelayClient relay;
     private final AudioPlayer audioPlayer = new AudioPlayer();
-    private final Mp4Recorder recorder = new Mp4Recorder();
     private final FullscreenView fullscreen = new FullscreenView();
     private final Handler ui = new Handler(Looper.getMainLooper());
+    private final ExecutorService frameExec = Executors.newSingleThreadExecutor();
+    private final AtomicReference<FrameData> pendingFrame = new AtomicReference<>();
+    private final AtomicBoolean frameWorker = new AtomicBoolean(false);
 
     private int frameCount = 0;
     private long windowStart = 0;
-    private boolean soundOn = true;
-    private boolean pendingRecord = false;
-    private boolean dualOn = false;
+    private volatile boolean soundOn = true;
+    private volatile boolean pendingRecord = false;
+    private volatile boolean remoteRec = false;
+    private volatile int recToken = 0;
+    private volatile boolean dualOn = false;
     private boolean camMicOn = true;
     private String camFacing = "BACK";
-    private Bitmap lastBack, lastFront;
+    private volatile Bitmap lastBack, lastFront;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -122,10 +131,9 @@ public class ViewerActivity extends AppCompatActivity {
                 if (topic.endsWith("/frame") || topic.endsWith("/frame_back")
                         || topic.endsWith("/frame_front")) {
                     boolean back = !topic.endsWith("/frame_front");
-                    onFrame(payload, back);
+                    enqueueFrame(payload, back);
                 } else if (topic.endsWith("/audio")) {
                     if (soundOn) audioPlayer.feed(payload);
-                    if (recorder.isRecording()) recorder.feedAudio(payload);
                 } else if (topic.endsWith("/status")) {
                     onStatus(Control.text(payload));
                 }
@@ -141,29 +149,33 @@ public class ViewerActivity extends AppCompatActivity {
         relay.connect(true);
     }
 
-    private void onFrame(byte[] jpeg, boolean back) {
-        final Bitmap bmp = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
-        if (bmp == null) return;
-        if (back) lastBack = bmp; else lastFront = bmp;
-
-        if (!dualOn && back) {
-            if (pendingRecord) {
-                pendingRecord = false;
-                try {
-                    final String name = recorder.start(this, bmp.getWidth(), bmp.getHeight());
-                    recorder.feedVideo(Mp4Recorder.bitmapToNv21(bmp));
-                    ui.post(() -> {
-                        btnRecord.setText("STOP REC");
-                        Toast.makeText(this, "Recording shuru: " + name, Toast.LENGTH_SHORT).show();
-                        refreshInfo();
-                    });
-                } catch (Exception e) {
-                    ui.post(() -> Toast.makeText(this, "Recording start nahi hui", Toast.LENGTH_SHORT).show());
-                }
-            } else if (recorder.isRecording()) {
-                recorder.feedVideo(Mp4Recorder.bitmapToNv21(bmp));
-            }
+    /** MQTT callback must never decode/encode — keep only the newest frame and return. */
+    private void enqueueFrame(byte[] jpeg, boolean back) {
+        pendingFrame.set(new FrameData(jpeg, back));
+        if (frameWorker.compareAndSet(false, true)) {
+            try { frameExec.execute(this::drainFrames); }
+            catch (Exception e) { frameWorker.set(false); }
         }
+    }
+
+    private void drainFrames() {
+        while (true) {
+            FrameData frame = pendingFrame.getAndSet(null);
+            if (frame == null) {
+                frameWorker.set(false);
+                if (pendingFrame.get() != null && frameWorker.compareAndSet(false, true)) continue;
+                return;
+            }
+            processFrame(frame);
+        }
+    }
+
+    private void processFrame(FrameData frame) {
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inPreferredConfig = Bitmap.Config.RGB_565;
+        Bitmap bmp = BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.length, opts);
+        if (bmp == null) return;
+        if (frame.back) lastBack = bmp; else lastFront = bmp;
 
         frameCount++;
         long now = System.currentTimeMillis();
@@ -177,19 +189,19 @@ public class ViewerActivity extends AppCompatActivity {
 
         ui.post(() -> {
             if (dualOn) {
-                if (back) feedBackImage.setImageBitmap(bmp);
+                if (frame.back) feedBackImage.setImageBitmap(bmp);
                 else feedFrontImage.setImageBitmap(bmp);
                 dualFeed.setVisibility(View.VISIBLE);
                 feedImage.setVisibility(View.GONE);
                 feedPlaceholder.setVisibility(View.GONE);
-            } else if (back) {
+            } else if (frame.back) {
                 feedImage.setImageBitmap(bmp);
                 feedImage.setVisibility(View.VISIBLE);
                 dualFeed.setVisibility(View.GONE);
                 feedPlaceholder.setVisibility(View.GONE);
             }
             liveBadge.setVisibility(View.VISIBLE);
-            if (fullscreen.isShowing() && back) fullscreen.setBitmap(bmp);
+            if (fullscreen.isShowing() && frame.back) fullscreen.setBitmap(bmp);
         });
     }
 
@@ -205,20 +217,30 @@ public class ViewerActivity extends AppCompatActivity {
         else if (Control.DUAL_ON.equals(cmd)) dualOn = true;
         else if (Control.DUAL_OFF.equals(cmd)) dualOn = false;
         else if (Control.REC_ON.equals(cmd)) {
+            remoteRec = true;
             pendingRecord = false;
+            recToken++;
             ui.post(() -> { btnRecord.setText("STOP REC"); refreshInfo(); });
             return;
-        } else if (Control.REC_FAIL.equals(cmd)) {
+        } else if (cmd != null && cmd.startsWith(Control.REC_FAIL)) {
+            String reason = cmd.length() > Control.REC_FAIL.length()
+                    ? cmd.substring(Control.REC_FAIL.length() + 1) : "";
+            remoteRec = false;
             pendingRecord = false;
+            recToken++;
             ui.post(() -> {
                 btnRecord.setText("RECORD");
-                Toast.makeText(this, "Camera recording start nahi hui", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, reason.isEmpty()
+                        ? "Camera recording start nahi hui"
+                        : "Camera REC fail: " + reason, Toast.LENGTH_LONG).show();
                 refreshInfo();
             });
             return;
         } else if (Control.REC_OFF.equals(cmd)) {
+            remoteRec = false;
             pendingRecord = false;
-            ui.post(() -> { if (!recorder.isRecording()) btnRecord.setText("RECORD"); refreshInfo(); });
+            recToken++;
+            ui.post(() -> { btnRecord.setText("RECORD"); refreshInfo(); });
             return;
         }
         ui.post(() -> { applyDualUi(); refreshInfo(); });
@@ -240,28 +262,33 @@ public class ViewerActivity extends AppCompatActivity {
             Toast.makeText(this, "Split view me recording pehle SINGLE karo", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (pendingRecord) {
+        if (remoteRec || pendingRecord) {
+            remoteRec = false;
             pendingRecord = false;
+            recToken++;
+            btnRecord.setText("STOPPING…");
             publish(Control.REC_STOP);
-            btnRecord.setText("RECORD");
+            ui.postDelayed(() -> {
+                if (!remoteRec && !pendingRecord) {
+                    btnRecord.setText("RECORD");
+                    refreshInfo();
+                }
+            }, 1500);
             return;
         }
-        if (recorder.isRecording()) {
-            btnRecord.setText("RECORD");
-            publish(Control.REC_STOP);
-            new Thread(() -> {
-                final String name = recorder.stop();
-                ui.post(() -> {
-                    Toast.makeText(this, "Saved: " + name, Toast.LENGTH_SHORT).show();
-                    refreshInfo();
-                });
-            }, "save-rec").start();
-        } else {
-            pendingRecord = true;
-            btnRecord.setText("STARTING…");
-            publish(Control.REC_START);
-            Toast.makeText(this, "Recording agle frame se shuru hogi", Toast.LENGTH_SHORT).show();
-        }
+        pendingRecord = true;
+        btnRecord.setText("STARTING…");
+        final int token = ++recToken;
+        publish(Control.REC_START);
+        Toast.makeText(this, "Recording camera phone me save hogi", Toast.LENGTH_SHORT).show();
+        ui.postDelayed(() -> {
+            if (recToken == token && pendingRecord) {
+                pendingRecord = false;
+                btnRecord.setText("RECORD");
+                Toast.makeText(this, "Camera ne recording reply nahi diya", Toast.LENGTH_SHORT).show();
+                refreshInfo();
+            }
+        }, 6000);
     }
 
     private void refreshInfo() {
@@ -269,7 +296,17 @@ public class ViewerActivity extends AppCompatActivity {
         btnSplit.setText(dualOn ? "SINGLE" : "SPLIT");
         viewerInfoText.setText((dualOn ? "FRONT + BACK" : camFacing + " CAM")
                 + " · MIC " + (camMicOn ? "ON" : "OFF") + " · REC "
-                + (recorder.isRecording() || pendingRecord ? "ON" : "OFF"));
+                + (remoteRec || pendingRecord ? "ON" : "OFF"));
+    }
+
+    private static final class FrameData {
+        final byte[] jpeg;
+        final boolean back;
+
+        FrameData(byte[] jpeg, boolean back) {
+            this.jpeg = jpeg;
+            this.back = back;
+        }
     }
 
     static final class CamBitmap {
@@ -283,7 +320,8 @@ public class ViewerActivity extends AppCompatActivity {
 
     @Override protected void onDestroy() {
         if (relay != null) relay.disconnect();
-        if (recorder.isRecording()) recorder.stop();
+        pendingFrame.set(null);
+        frameExec.shutdownNow();
         audioPlayer.stop();
         fullscreen.hide();
         super.onDestroy();

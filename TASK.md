@@ -115,7 +115,7 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
 - [x] V7 — Device test: user ne apk-8 test kiya — RECORD abhi bhi stuck,
       video jerky/bursty; v6 open defect.
 
-## v6 request (24 Nov 2026) — IN PROGRESS
+## v6 request (24 Nov 2026) — SHIPPED
 - [x] V1 — `RelayClient`: latest-wins frame publish (purane frames drop, burst khatam).
 - [x] V2 — `CameraService`: frame rate ~12 fps (dual ~8 fps/pane), 480x360-
       targeted frame, JPEG cost kam, callback thread non-blocking publish.
@@ -137,6 +137,34 @@ User ne web link check karke baad REVERSE kar diya — mobile-to-mobile only.
   Fix: latest-wins frames, ~12 fps, non-blocking encoder feed, explicit failure
   status, optimistic UI state.
 
+## v7 request (25 Nov 2026) — IN PROGRESS
+User ne `apk-9` test kiya: RECORD button stuck, recording on nahi hoti, video
+save nahi hoti, live video jerky/ruk-ruk kar chalti hai. v6 fixes kaafi nahi the.
+
+- [x] V1 — **Root cause #1:** `Mp4Recorder.stop()` filename return karta tha,
+      `CameraService` usko save-path samajh kar `SAVE FAIL` dikhata tha. Ab
+      `r.stop()` ke baad `r.getSavedPath()` read hota hai; `SAVED:` sahi publish hota hai.
+- [x] V2 — Encoder-safe preview: 480x320 target, 16-pixel alignment priority.
+- [x] V3 — `Mp4Recorder.createVideoEncoder()`: AVC encoder list scan, SemiPlanar
+      ya Planar color format pick, `toEncoderInput()` NV12/I420; audio track na
+      bane to video-only MP4 fallback.
+- [x] V4 — Recording start/stop dedicated `recHandler` thread par; camera thread
+      block nahi hota.
+- [x] V5 — `isRecording()` non-blocking volatile; recording NV21 conversion
+      dedicated worker par; stale recording frames drop.
+- [x] V6 — Viewer: MQTT callback sirf latest frame rakhta hai; decode worker +
+      RGB_565 + stale drop; viewer ka local recorder hata diya (camera phone
+      hi record karta hai); remote RECORD state/timeout.
+- [x] V7 — `REC_FAIL:<reason>` viewer tak; versionCode 7 / versionName 1.6.
+- [ ] V8 — Push + Actions green; release `apk-10` verify.
+- [ ] V9 — User device test: RECORD, MP4 save, smooth live view, MIC.
+
+## Decisions (v7)
+- Recording authority camera phone par; viewer sirf remote control.
+- Save path v5 jaisa: temp MP4 -> `DCIM/Camera` -> `Download` -> `Movies`.
+- Viewer decode MQTT thread par nahi; latest-frame only.
+- Camera thread se recording conversion hata kar worker par; UI/live feed priority.
+
 ## NOW
-v6 SHIPPED as apk-9 (1.5). User ko device par test karna hai: smooth live view,
-RECORD start/stop, MIC, aur DCIM/Camera me MP4 save.
+v7 code done; build pending. Next: commit/push, Actions green, release `apk-10`,
+then user device test.

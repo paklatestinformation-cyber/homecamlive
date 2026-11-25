@@ -133,4 +133,26 @@ adaptive launcher foreground replaced with the same mark. Concept sheet in
 
 Build: `versionCode 6`, `versionName '1.5'`, commit `9f24fec`, run `45499098534`
 green, release `apk-9` (5,734,540 bytes verified; app code in classes3.dex).
-Device test pending.
+
+## v7 request (25 Nov 2026) — IN PROGRESS
+User tested apk-9: RECORD still does not turn on, video still not saving, live
+video still lags/stops-and-goes. v6 fixes were not enough. Deeper root causes:
+- Likely 360x480 / 480x360 preview size not accepted by hardware AVC encoder
+  (width must be a multiple of 16) -> start() throws before tracks are ready.
+- Viewer starts local recorder on the MQTT callback thread and blocks frame
+  delivery while `start()` waits up to 1.5 s; if it fails the button can remain
+  stuck.
+- Viewer decodes every JPEG on the MQTT callback thread and does not drop stale
+  frames; bursts still reach the UI.
+- Need robust encoder color-format selection (SemiPlanar / Planar) and video-only
+  fallback if audio track never becomes ready.
+- Need 480x320-targeted preview (multiples of 16) and a viewer latest-frame
+  decode pipeline so live view stays smooth.
+- **Found regression:** `Mp4Recorder.stop()` returns the filename, but
+  `CameraService` treated that return as the save path, so every stop showed
+  `SAVE FAIL` even when the MP4 was published. Fixed to call `stop()` then
+  `getSavedPath()`; this is the main reason v6 looked like it never saved.
+- Implemented: encoder list scan (SemiPlanar/Planar), video-only fallback,
+  recorder HandlerThread, non-blocking `isRecording()`, off-thread recording
+  NV21 conversion with stale-frame drop, viewer latest-frame decode worker.
+- Version bump `7` / `1.6`; build pending.
