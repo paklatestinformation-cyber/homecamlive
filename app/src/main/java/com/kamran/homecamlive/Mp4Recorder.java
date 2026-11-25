@@ -39,7 +39,7 @@ public class Mp4Recorder {
     private Context appCtx;
     private int videoTrack = -1, audioTrack = -1;
     private int videoColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar;
-    private boolean muxerStarted = false;
+    private volatile boolean muxerStarted = false;
     private volatile boolean recording = false;
     private long startNs;
     private String outputName;
@@ -100,25 +100,32 @@ public class Mp4Recorder {
             primeBlankFrame(w, h);
             if (audioCodec != null) primeSilence();
 
-            long deadline = System.currentTimeMillis() + 1500;
+            // Best-effort: try to get the encoder output format now. We do NOT fail
+            // here if it is not ready yet — the muxer is started lazily inside
+            // drain() as soon as the first output format arrives, and feedVideo()
+            // keeps draining on every incoming frame. This avoids the
+            // "video encoder track not ready" failure on slow devices.
+            long deadline = System.currentTimeMillis() + 800;
             while (!muxerStarted && System.currentTimeMillis() < deadline) {
-                drain(videoCodec, vInfo, true, 60000);
-                if (audioCodec != null) drain(audioCodec, aInfo, false, 60000);
+                drain(videoCodec, vInfo, true, 40000);
+                if (audioCodec != null) drain(audioCodec, aInfo, false, 40000);
+                if (videoTrack >= 0 && (audioCodec == null || audioTrack >= 0)) {
+                    try { muxer.start(); muxerStarted = true; } catch (Exception e) { Log.w(TAG, "muxer start", e); }
+                }
             }
-            if (!muxerStarted && videoTrack >= 0) {
-                // Some devices never report an AAC output format. Keep video instead of failing.
-                Log.w(TAG, "audio track not ready; starting video-only MP4");
+            if (!muxerStarted && videoTrack >= 0 && audioCodec != null) {
+                // Audio track never became ready -> drop audio, video-only MP4.
+                Log.w(TAG, "audio track not ready; recording video-only");
                 try { if (audioCodec != null) { audioCodec.stop(); audioCodec.release(); } }
                 catch (Exception ignored) { }
                 audioCodec = null;
                 audioTrack = -1;
-                muxer.start();
-                muxerStarted = true;
+                try { muxer.start(); muxerStarted = true; } catch (Exception e) { Log.w(TAG, "muxer start vonly", e); }
             }
-            if (!muxerStarted) throw new IOException("Video encoder track not ready");
 
             recording = true;
-            Log.i(TAG, "start " + outputName + " " + w + "x" + h + " temp=" + tempFile);
+            Log.i(TAG, "start " + outputName + " " + w + "x" + h
+                    + " temp=" + tempFile + " muxerStarted=" + muxerStarted);
             return outputName;
         } catch (Exception e) {
             Log.e(TAG, "start failed", e);
@@ -204,10 +211,13 @@ public class Mp4Recorder {
                 ByteBuffer bb = videoCodec.getInputBuffer(idx);
                 if (bb != null) {
                     byte[] nv12 = toEncoderInput(yuv);
+                    if (bb.capacity() < nv12.length) { Log.w(TAG, "prime buffer too small"); }
+                    else {
                     bb.clear();
                     bb.put(nv12);
                     videoCodec.queueInputBuffer(idx, 0, nv12.length, 0, 0);
                     drain(videoCodec, vInfo, true, 100000);
+                    }
                 }
             }
         } catch (Exception e) { Log.w(TAG, "primeBlankFrame", e); }
@@ -237,6 +247,7 @@ public class Mp4Recorder {
             byte[] nv12 = toEncoderInput(nv21);
             ByteBuffer bb = videoCodec.getInputBuffer(idx);
             if (bb == null) return;
+            if (bb.capacity() < nv12.length) return;
             bb.clear();
             bb.put(nv12);
             long pts = (System.nanoTime() - startNs) / 1000L;
@@ -252,6 +263,7 @@ public class Mp4Recorder {
             if (idx < 0) return;
             ByteBuffer bb = audioCodec.getInputBuffer(idx);
             if (bb == null) return;
+            if (bb.capacity() < pcm.length) return;
             bb.clear();
             bb.put(pcm);
             long pts = (System.nanoTime() - startNs) / 1000L;
