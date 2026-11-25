@@ -285,8 +285,8 @@ public class CameraService extends Service {
                 if (Control.FLIP.equals(cmd)) flipCamera();
                 else if (Control.MIC_ON.equals(cmd)) setMic(true);
                 else if (Control.MIC_OFF.equals(cmd)) setMic(false);
-                else if (Control.REC_START.equals(cmd)) recHandler.post(this::startRecording);
-                else if (Control.REC_STOP.equals(cmd)) recHandler.post(this::stopRecording);
+                else if (Control.REC_START.equals(cmd)) recHandler.post(CameraService.this::startRecording);
+                else if (Control.REC_STOP.equals(cmd)) recHandler.post(CameraService.this::stopRecording);
                 else if (Control.DUAL_ON.equals(cmd)) startDual();
                 else if (Control.DUAL_OFF.equals(cmd)) stopDual();
             }
